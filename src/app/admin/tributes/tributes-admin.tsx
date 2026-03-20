@@ -248,9 +248,6 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Tributes</h1>
-          <p className="text-sm text-muted-foreground">
-            Review submissions and manage approval status.
-          </p>
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -287,13 +284,10 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">All tributes</CardTitle>
-        </CardHeader>
+      <Card className="bg-transparent ring-0">
         <CardContent>
           {tributes.length === 0 ? (
-            <div className="rounded-lg border border-dashed bg-muted/10 p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
               No tributes yet. When someone submits via the public site, they will appear here for approval.
             </div>
           ) : (

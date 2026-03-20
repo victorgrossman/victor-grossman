@@ -233,9 +233,6 @@ export function InterviewsAdmin({ interviews }: { interviews: InterviewRow[] }) 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Interviews</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage interview content for the memorial site.
-          </p>
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -274,13 +271,10 @@ export function InterviewsAdmin({ interviews }: { interviews: InterviewRow[] }) 
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">All interviews</CardTitle>
-        </CardHeader>
+      <Card className="bg-transparent ring-0">
         <CardContent>
           {interviews.length === 0 ? (
-            <div className="rounded-lg border border-dashed bg-muted/10 p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
               No interviews yet. Use <span className="font-medium text-foreground">New Interview</span> to add one.
             </div>
           ) : (

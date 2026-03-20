@@ -223,9 +223,6 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Books</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage book entries shown on the memorial site.
-          </p>
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -261,13 +258,10 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">All books</CardTitle>
-        </CardHeader>
+      <Card className="bg-transparent ring-0">
         <CardContent>
           {books.length === 0 ? (
-            <div className="rounded-lg border border-dashed bg-muted/10 p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
               No books yet. Click <span className="font-medium text-foreground">New Book</span> to add the first one.
             </div>
           ) : (

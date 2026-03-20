@@ -201,9 +201,6 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Articles</h1>
-          <p className="text-sm text-muted-foreground">
-            Create and maintain editorial content.
-          </p>
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -239,13 +236,10 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">All articles</CardTitle>
-        </CardHeader>
+      <Card className="bg-transparent ring-0">
         <CardContent>
           {articles.length === 0 ? (
-            <div className="rounded-lg border border-dashed bg-muted/10 p-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
               No articles yet. Add one with <span className="font-medium text-foreground">New Article</span>.
             </div>
           ) : (
