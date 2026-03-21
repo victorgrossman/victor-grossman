@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { uploadToImageKit } from "@/lib/imagekit"
 
 export async function createBook(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim()
@@ -16,8 +17,7 @@ export async function createBook(formData: FormData) {
 
   let image_url = ""
   if (imageFile && imageFile.size > 0) {
-    // TODO: ImageKit upload here (I will add this myself)
-    image_url = ""
+    image_url = await uploadToImageKit(imageFile, "books")
   }
 
   const { error } = await supabase.from("books").insert({
@@ -46,8 +46,7 @@ export async function updateBook(bookId: string, formData: FormData) {
 
   let image_url = ""
   if (imageFile && imageFile.size > 0) {
-    // TODO: ImageKit upload here (I will add this myself)
-    image_url = ""
+    image_url = await uploadToImageKit(imageFile, "books")
   } else {
     const { data } = await supabase
       .from("books")

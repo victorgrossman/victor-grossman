@@ -6,11 +6,19 @@ import { useRouter } from "next/navigation"
 import { z } from "zod"
 
 import { toast } from "sonner"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -22,7 +30,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { DataTable, type DataTableColumn } from "@/components/data-table"
 
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -149,88 +156,13 @@ export function InterviewsAdmin({ interviews }: { interviews: InterviewRow[] }) 
   const [createOpen, setCreateOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<InterviewRow | null>(null)
-
-  const columns: DataTableColumn<InterviewRow>[] = [
-    {
-      key: "title",
-      header: "Interview",
-      sortable: true,
-      sortValue: (r) => r.title ?? "",
-      render: (row) => (
-        <div>
-          <div className="font-medium">{row.title}</div>
-          <div className="text-xs text-muted-foreground">
-            {row.person}
-            {row.role ? ` • ${row.role}` : ""}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: "image",
-      header: "Image",
-      render: (row) =>
-        row.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={row.image_url}
-            alt={row.title ?? "interview"}
-            className="h-10 w-10 rounded object-cover"
-          />
-        ) : (
-          <Badge variant="secondary">No image</Badge>
-        ),
-    },
-    {
-      key: "content",
-      header: "Notes",
-      render: (row) => (
-        <span className="max-w-xs text-muted-foreground">
-          {(row.content ?? "").slice(0, 80)}
-          {(row.content ?? "").length > 80 ? "..." : ""}
-        </span>
-      ),
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      render: (row) => (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setEditing(row)
-              setEditOpen(true)
-            }}
-          >
-            <Pencil className="mr-2 size-4" />
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={async () => {
-              const res = await deleteInterview(row.id)
-              if (!res.ok) {
-                toast.error(res.message)
-                return
-              }
-              toast.success("Interview deleted.")
-              router.refresh()
-            }}
-          >
-            <Trash2 className="mr-2 size-4" />
-            Delete
-          </Button>
-        </div>
-      ),
-    },
-  ]
+  const [interviewPendingDelete, setInterviewPendingDelete] =
+    React.useState<InterviewRow | null>(null)
+  const [deletePending, setDeletePending] = React.useState(false)
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="w-full max-w-full space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Interviews</h1>
         </div>
@@ -271,17 +203,80 @@ export function InterviewsAdmin({ interviews }: { interviews: InterviewRow[] }) 
         </Dialog>
       </div>
 
-      <Card className="bg-transparent ring-0">
-        <CardContent>
-          {interviews.length === 0 ? (
-            <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
-              No interviews yet. Use <span className="font-medium text-foreground">New Interview</span> to add one.
-            </div>
-          ) : (
-            <DataTable data={interviews} columns={columns} />
-          )}
-        </CardContent>
-      </Card>
+      <div className="w-full overflow-hidden rounded-xl border border-border/50 bg-card/30">
+      {interviews.length === 0 ? (
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          No interviews yet. Click{" "}
+          <span className="font-medium text-foreground">New Interview</span> to
+          add one — they’ll show as <span className="font-medium text-foreground">cards</span> in a grid.
+        </div>
+      ) : (
+        <div className="grid items-stretch gap-6 p-3 sm:p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {interviews.map((interview) => (
+            <Card
+              key={interview.id}
+              className="border-border/60 bg-card/40 flex h-full flex-col gap-0! overflow-hidden p-0! py-0! shadow-sm ring-1 ring-border/50 transition-shadow hover:shadow-md"
+            >
+              {/* Cover */}
+              <div className="relative aspect-4/5 w-full shrink-0 bg-muted/25">
+                {interview.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- external CMS URLs (ImageKit, etc.)
+                  <img
+                    src={interview.image_url}
+                    alt={interview.title ?? "Interview thumbnail"}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="flex h-full min-h-[140px] items-center justify-center px-3 text-center text-[11px] text-muted-foreground">
+                    No image
+                  </div>
+                )}
+              </div>
+
+              {/* Text */}
+              <div className="flex min-h-0 flex-1 flex-col px-3 pt-2.5 pb-0">
+                <h3 className="text-sm font-semibold leading-tight tracking-tight line-clamp-2">
+                  {interview.title}
+                </h3>
+                <p className="mt-1 text-[11px] leading-tight text-muted-foreground line-clamp-1">
+                  {interview.person ?? "—"}
+                  {interview.role ? ` • ${interview.role}` : ""}
+                </p>
+                <p className="mt-1.5 min-h-11 text-xs leading-snug text-muted-foreground line-clamp-3">
+                  {(interview.content ?? "").trim() || "—"}
+                </p>
+              </div>
+
+              {/* Actions: Edit left, Delete right */}
+              <div className="mt-auto flex shrink-0 items-center justify-between gap-2 border-t border-border/50 bg-muted/20 px-2 py-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-3 text-xs font-medium"
+                  onClick={() => {
+                    setEditing(interview)
+                    setEditOpen(true)
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-3 text-xs font-medium text-destructive hover:text-destructive"
+                  onClick={() => setInterviewPendingDelete(interview)}
+                >
+                  Delete
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
@@ -314,6 +309,59 @@ export function InterviewsAdmin({ interviews }: { interviews: InterviewRow[] }) 
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirm */}
+      <AlertDialog
+        open={!!interviewPendingDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setInterviewPendingDelete(null)
+            setDeletePending(false)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this interview?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {interviewPendingDelete ? (
+                <>
+                  This will permanently remove{" "}
+                  <span className="font-medium text-foreground">
+                    {interviewPendingDelete.title ?? "this interview"}
+                  </span>{" "}
+                  from your library. This action cannot be undone.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePending}>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletePending}
+              onClick={async () => {
+                if (!interviewPendingDelete) return
+                setDeletePending(true)
+                const res = await deleteInterview(interviewPendingDelete.id)
+                setDeletePending(false)
+                if (!res.ok) {
+                  toast.error(res.message)
+                  return
+                }
+                toast.success("Interview deleted.")
+                setInterviewPendingDelete(null)
+                router.refresh()
+              }}
+            >
+              {deletePending ? "Deleting..." : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -14,6 +14,7 @@ import {
   Mic,
   Newspaper,
   MessageSquareText,
+  ScrollText,
 } from "lucide-react"
 
 type NavLink = { href: string; label: string }
@@ -26,6 +27,7 @@ const iconByHref: Record<string, React.ComponentType<{ className?: string }>> =
     "/admin/books": BookOpen,
     "/admin/articles": Newspaper,
     "/admin/interviews": Mic,
+    "/admin/bulletins": ScrollText,
   }
 
 export function SidebarNav({ links }: { links: NavLink[] }) {

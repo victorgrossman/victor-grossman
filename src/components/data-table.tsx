@@ -4,6 +4,7 @@ import * as React from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   Table,
   TableBody,
@@ -18,15 +19,20 @@ export type DataTableColumn<T> = {
   header: string
   sortable?: boolean
   sortValue?: (row: T) => string | number
-  render: (row: T) => React.ReactNode
+  /** Applied to `<th>` and `<td>` for this column (width, alignment) */
+  columnClassName?: string
+  render: (row: T, index: number) => React.ReactNode
 }
 
 export function DataTable<T>({
   data,
   columns,
+  tableClassName,
 }: {
   data: T[]
   columns: DataTableColumn<T>[]
+  /** Applied to the inner `<table>` element */
+  tableClassName?: string
 }) {
   const [sortKey, setSortKey] = React.useState<string | null>(null)
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc")
@@ -50,11 +56,11 @@ export function DataTable<T>({
   }, [columns, data, sortDir, sortKey])
 
   return (
-    <Table>
+    <Table className={cn(tableClassName)}>
       <TableHeader>
         <TableRow>
           {columns.map((col) => (
-            <TableHead key={col.key}>
+            <TableHead key={col.key} className={col.columnClassName}>
               {col.sortable ? (
                 <Button
                   type="button"
@@ -90,7 +96,9 @@ export function DataTable<T>({
         {sorted.map((row, idx) => (
           <TableRow key={idx}>
             {columns.map((col) => (
-              <TableCell key={col.key}>{col.render(row)}</TableCell>
+              <TableCell key={col.key} className={col.columnClassName}>
+                {col.render(row, idx)}
+              </TableCell>
             ))}
           </TableRow>
         ))}

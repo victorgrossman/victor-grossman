@@ -6,11 +6,19 @@ import { useRouter } from "next/navigation"
 import { z } from "zod"
 
 import { toast } from "sonner"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -22,7 +30,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { DataTable, type DataTableColumn } from "@/components/data-table"
 
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -142,81 +149,8 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
   const [createOpen, setCreateOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<BookRow | null>(null)
-
-  const columns: DataTableColumn<BookRow>[] = [
-    {
-      key: "title",
-      header: "Book",
-      sortable: true,
-      sortValue: (r) => r.title ?? "",
-      render: (row) => (
-        <div>
-          <div className="font-medium">{row.title}</div>
-          <div className="text-xs text-muted-foreground">{row.author}</div>
-        </div>
-      ),
-    },
-    {
-      key: "description",
-      header: "Description",
-      render: (row) => (
-        <span className="max-w-xs text-muted-foreground">
-          {(row.description ?? "").slice(0, 80)}
-          {(row.description ?? "").length > 80 ? "..." : ""}
-        </span>
-      ),
-    },
-    {
-      key: "image",
-      header: "Image",
-      render: (row) =>
-        row.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={row.image_url}
-            alt={row.title ?? "book"}
-            className="h-10 w-10 rounded object-cover"
-          />
-        ) : (
-          <Badge variant="secondary">No image</Badge>
-        ),
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      render: (row) => (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setEditing(row)
-              setEditOpen(true)
-            }}
-          >
-            <Pencil className="mr-2 size-4" />
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={async () => {
-              const res = await deleteBook(row.id)
-              if (!res.ok) {
-                toast.error(res.message)
-                return
-              }
-              toast.success("Book deleted.")
-              router.refresh()
-            }}
-          >
-            <Trash2 className="mr-2 size-4" />
-            Delete
-          </Button>
-        </div>
-      ),
-    },
-  ]
+  const [bookPendingDelete, setBookPendingDelete] = React.useState<BookRow | null>(null)
+  const [deletePending, setDeletePending] = React.useState(false)
 
   return (
     <div className="space-y-6">
@@ -258,17 +192,75 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
         </Dialog>
       </div>
 
-      <Card className="bg-transparent ring-0">
-        <CardContent>
-          {books.length === 0 ? (
-            <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
-              No books yet. Click <span className="font-medium text-foreground">New Book</span> to add the first one.
-            </div>
-          ) : (
-            <DataTable data={books} columns={columns} />
-          )}
-        </CardContent>
-      </Card>
+      {books.length === 0 ? (
+        <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
+          No books yet. Click <span className="font-medium text-foreground">New Book</span> to add the first one.
+        </div>
+      ) : (
+        <div className="grid items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {books.map((book) => (
+            <Card
+              key={book.id}
+              className="border-border/60 bg-card/40 flex h-full flex-col gap-0! overflow-hidden p-0! py-0! shadow-sm ring-1 ring-border/50 transition-shadow hover:shadow-md"
+            >
+              {/* Cover: flush to card top — no extra padding from Card */}
+              <div className="relative aspect-4/5 w-full shrink-0 bg-muted/25">
+                {book.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- external CMS URLs (ImageKit, etc.)
+                  <img
+                    src={book.image_url}
+                    alt={book.title ?? "Book cover"}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="flex h-full min-h-[140px] items-center justify-center px-3 text-center text-[11px] text-muted-foreground">
+                    No cover
+                  </div>
+                )}
+              </div>
+
+              {/* Text: tight vertical rhythm, no loose space-y */}
+              <div className="flex min-h-0 flex-1 flex-col px-3 pt-2.5 pb-0">
+                <h3 className="text-sm font-semibold leading-tight tracking-tight line-clamp-2">
+                  {book.title}
+                </h3>
+                <p className="mt-1 text-[11px] leading-tight text-muted-foreground line-clamp-1">
+                  {book.author ?? "—"}
+                </p>
+                <p className="mt-1.5 min-h-11 text-xs leading-snug text-muted-foreground line-clamp-3">
+                  {(book.description ?? "").trim() || "—"}
+                </p>
+              </div>
+
+              {/* Actions: Edit left, Delete right */}
+              <div className="mt-auto flex shrink-0 items-center justify-between gap-2 border-t border-border/50 bg-muted/20 px-2 py-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-3 text-xs font-medium"
+                  onClick={() => {
+                    setEditing(book)
+                    setEditOpen(true)
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-3 text-xs font-medium text-destructive hover:text-destructive"
+                  onClick={() => setBookPendingDelete(book)}
+                >
+                  Delete
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
@@ -300,6 +292,56 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!bookPendingDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBookPendingDelete(null)
+            setDeletePending(false)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this book?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bookPendingDelete ? (
+                <>
+                  This will permanently remove{" "}
+                  <span className="font-medium text-foreground">
+                    {bookPendingDelete.title ?? "this book"}
+                  </span>{" "}
+                  from your library. This action cannot be undone.
+                </>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletePending}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletePending}
+              onClick={async () => {
+                if (!bookPendingDelete) return
+                setDeletePending(true)
+                const res = await deleteBook(bookPendingDelete.id)
+                setDeletePending(false)
+                if (!res.ok) {
+                  toast.error(res.message)
+                  return
+                }
+                toast.success("Book deleted.")
+                setBookPendingDelete(null)
+                router.refresh()
+              }}
+            >
+              {deletePending ? "Deleting…" : "Delete"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

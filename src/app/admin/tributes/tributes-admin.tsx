@@ -144,7 +144,7 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
   const [editOpen, setEditOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<TributeRow | null>(null)
 
-  const columns: DataTableColumn<TributeRow>[] = [
+  const columns = React.useMemo<DataTableColumn<TributeRow>[]>(() => [
     {
       key: "name",
       header: "Author",
@@ -241,7 +241,7 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
         </div>
       ),
     },
-  ]
+  ], [router])
 
   return (
     <div className="space-y-6">

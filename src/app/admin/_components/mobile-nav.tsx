@@ -11,6 +11,7 @@ const items = [
   { href: "/admin/books", label: "Books" },
   { href: "/admin/articles", label: "Articles" },
   { href: "/admin/interviews", label: "Interviews" },
+  { href: "/admin/bulletins", label: "Bulletins" },
 ]
 
 export function MobileNav() {

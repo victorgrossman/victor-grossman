@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { uploadToImageKit } from "@/lib/imagekit"
 
 export async function createArticle(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim()
@@ -17,8 +18,7 @@ export async function createArticle(formData: FormData) {
 
   let image_url = ""
   if (imageFile && imageFile.size > 0) {
-    // TODO: ImageKit upload here (I will add this myself)
-    image_url = ""
+    image_url = await uploadToImageKit(imageFile, "articles")
   }
 
   const { error } = await supabase.from("articles").insert({
@@ -48,8 +48,7 @@ export async function updateArticle(articleId: string, formData: FormData) {
 
   let image_url = ""
   if (imageFile && imageFile.size > 0) {
-    // TODO: ImageKit upload here (I will add this myself)
-    image_url = ""
+    image_url = await uploadToImageKit(imageFile, "articles")
   } else {
     const { data } = await supabase
       .from("articles")

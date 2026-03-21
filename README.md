@@ -16,6 +16,23 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Importing photos (WordPress → ImageKit → Supabase)
+
+1. Copy `.env.local.example` to `.env.local` and add **ImageKit** keys and **`SUPABASE_SERVICE_ROLE_KEY`** (Dashboard → Project Settings → API). Row Level Security only allows authenticated users to insert; the service role bypasses RLS for trusted local scripts.
+2. From `cms-app`, run:
+
+   ```bash
+   npm run import:photos -- --dry-run   # list images that would be imported
+   npm run import:photos -- --max=10     # import first 10 unique images
+   npm run import:photos                 # import all unique images from posts
+   ```
+
+   Images are taken from [WordPress.com REST API](https://developer.wordpress.com/docs/api/) posts for `victorgrossmansberlinbulletin.wordpress.com` (override with env `WORDPRESS_SITE`). They are resized/compressed with `sharp`, uploaded to ImageKit under `/cms/photos`, then inserted into `public.photos`.
+
+3. If you cannot use the service role, use **`npm run import:photos -- --no-db`** to upload to ImageKit and print `INSERT` lines, then run them in the SQL Editor.
+
+**More images:** Most bulletin posts are text-only, so the API may only find a few pictures. Copy `scripts/photos-sources.example.json` to **`scripts/photos-sources.json`** and add `{ "title", "sourceUrl" }` entries (any direct image URL). Those rows are merged into the import.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

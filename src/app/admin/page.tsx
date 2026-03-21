@@ -4,25 +4,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import {
-  BookOpen,
-  Image as ImageIcon,
-  MessageSquareText,
-  Mic,
-  Newspaper,
-} from "lucide-react"
-
-function sparkBars(value: number, max: number) {
-  const safeMax = Math.max(max, 1)
-  const base = value / safeMax
-
-  return Array.from({ length: 12 }, (_, i) => {
-    const t = i / 11
-    const wobble = ((i * 17 + value * 3) % 13) / 13
-    const h = 8 + Math.round((base * (0.35 + t) + wobble * 0.2) * 28)
-    return Math.min(38, Math.max(8, h))
-  })
-}
 
 async function getCount(table: string) {
   try {
@@ -38,17 +19,16 @@ async function getCount(table: string) {
 }
 
 export default async function AdminDashboard() {
-  const [photos, tributes, books, articles, interviews] = await Promise.all([
+  const [photos, tributes, books, articles, interviews, bulletins] = await Promise.all([
     getCount("photos"),
     getCount("tributes"),
     getCount("books"),
     getCount("articles"),
     getCount("interviews"),
+    getCount("bulletins"),
   ])
 
-  const total = photos + tributes + books + articles + interviews
-
-  const maxCount = Math.max(photos, tributes, books, articles, interviews, 1)
+  const total = photos + tributes + books + articles + interviews + bulletins
 
   return (
     <div className="space-y-6">
@@ -70,35 +50,33 @@ export default async function AdminDashboard() {
             label: "Photos",
             value: photos,
             href: "/admin/photos",
-            icon: ImageIcon,
           },
           {
             label: "Tributes",
             value: tributes,
             href: "/admin/tributes",
-            icon: MessageSquareText,
           },
           {
             label: "Books",
             value: books,
             href: "/admin/books",
-            icon: BookOpen,
           },
           {
             label: "Articles",
             value: articles,
             href: "/admin/articles",
-            icon: Newspaper,
           },
           {
             label: "Interviews",
             value: interviews,
             href: "/admin/interviews",
-            icon: Mic,
+          },
+          {
+            label: "Bulletins",
+            value: bulletins,
+            href: "/admin/bulletins",
           },
         ].map((s) => {
-          const Icon = s.icon
-          const bars = sparkBars(s.value, maxCount)
           return (
             <Card
               key={s.href}

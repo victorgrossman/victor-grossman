@@ -126,7 +126,7 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
   const [editOpen, setEditOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<ArticleRow | null>(null)
 
-  const columns: DataTableColumn<ArticleRow>[] = [
+  const columns = React.useMemo<DataTableColumn<ArticleRow>[]>(() => [
     {
       key: "title",
       header: "Article",
@@ -194,7 +194,7 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         </div>
       ),
     },
-  ]
+  ], [router])
 
   return (
     <div className="space-y-6">
