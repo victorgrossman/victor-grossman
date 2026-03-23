@@ -8,7 +8,6 @@ export async function middleware(req: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // If Supabase env vars are not configured, don't block the app at runtime.
   if (!supabaseUrl || !supabaseAnonKey) return res
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -29,12 +28,15 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession()
 
   const path = req.nextUrl.pathname
-  const isAdminRoute = path.startsWith("/admin")
-  const isAdminLogin = path === "/admin/login" || path.startsWith("/admin/login/")
 
-  if (isAdminRoute && !isAdminLogin && !session) {
-    const loginUrl = new URL("/admin/login", req.url)
-    return NextResponse.redirect(loginUrl)
+  // Redirect old /admin/login to root login page
+  if (path === "/admin/login" || path.startsWith("/admin/login/")) {
+    return NextResponse.redirect(new URL("/", req.url))
+  }
+
+  // Protect admin routes — redirect to root login if unauthenticated
+  if (path.startsWith("/admin") && !session) {
+    return NextResponse.redirect(new URL("/", req.url))
   }
 
   return res
@@ -43,4 +45,3 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: ["/admin/:path*"],
 }
-

@@ -1,22 +1,26 @@
-import Link from "next/link"
-
-import { Button } from "@/components/ui/button"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LoginForm } from "./login-form"
 
-export default function Home() {
+export default async function Home() {
+  const supabase = createSupabaseServerClient()
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (session) {
+    redirect("/admin")
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-12">
-      <Card>
+    <div className="flex min-h-svh items-center justify-center px-4">
+      <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle>Memorial Admin CMS</CardTitle>
+          <CardTitle>Sign in</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">
-            Sign in to manage Photos, Tributes, Books, Articles and Interviews.
-          </p>
-          <Button asChild className="w-full sm:w-fit" variant="secondary">
-            <Link href="/admin">Go to admin</Link>
-          </Button>
+        <CardContent>
+          <LoginForm />
         </CardContent>
       </Card>
     </div>

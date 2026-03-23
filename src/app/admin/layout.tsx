@@ -1,11 +1,9 @@
-import Link from "next/link"
-
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "./_components/theme-toggle"
 import { logoutAction } from "./_actions/auth"
 import { MobileNav } from "./_components/mobile-nav"
 import { SidebarNav } from "./_components/sidebar-nav"
 import { SonnerToaster } from "./_components/sonner-toaster"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 const links = [
   { href: "/admin", label: "Dashboard" },
@@ -17,23 +15,29 @@ const links = [
   { href: "/admin/bulletins", label: "Bulletins" },
 ]
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const email = user?.email ?? ""
+
   return (
     <div className="relative h-screen overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-indigo-500/20 via-background to-background dark:from-indigo-500/15" />
 
       <div className="relative mx-auto flex h-screen w-full max-w-[1600px]">
         <SonnerToaster />
-        <aside className="hidden w-72 shrink-0 border-r border-border/60 bg-card/40 p-6 lg:flex lg:flex-col">
-          <SidebarNav links={links} />
+        <aside className="hidden w-72 shrink-0 border-r border-border/60 bg-card/40 p-6 lg:flex lg:flex-col max-h-screen overflow-hidden">
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <SidebarNav links={links} />
+          </div>
 
-          <div className="mt-auto flex flex-col gap-3">
-            <ThemeToggle />
+          <div className="shrink-0 flex items-center justify-between gap-2 pt-3 border-t border-border/60 mt-3">
+            <span className="truncate text-sm text-muted-foreground">{email}</span>
             <form action={logoutAction}>
               <Button
                 type="submit"
                 variant="ghost"
-                className="w-full justify-start rounded-xl px-3"
+                className="shrink-0 px-3 text-red-500 hover:text-red-600 hover:bg-red-500/10"
               >
                 Logout
               </Button>
@@ -55,4 +59,3 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   )
 }
-

@@ -6,11 +6,10 @@ import { z } from "zod"
 import { useRouter } from "next/navigation"
 
 import { toast } from "sonner"
-import { Plus, Pencil, Trash2, ThumbsUp, ThumbsDown } from "lucide-react"
+import { Plus, Pencil, Trash2 } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -23,19 +22,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-import { DataTable, type DataTableColumn } from "@/components/data-table"
-
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { compressImageFile } from "@/lib/image-compress"
 
-import {
-  approveTribute,
-  createTribute,
-  deleteTribute,
-  rejectTribute,
-  updateTribute,
-} from "./_actions"
+import { createTribute, deleteTribute, updateTribute } from "./_actions"
 
 const tributeSchema = z.object({
   name: z.string().min(1, "Name is required."),
@@ -52,12 +43,6 @@ type TributeRow = {
 }
 
 type TributeFormValues = z.infer<typeof tributeSchema>
-
-function statusBadge(status: TributeRow["status"]) {
-  if (status === "approved") return <Badge>Approved</Badge>
-  if (status === "rejected") return <Badge variant="destructive">Rejected</Badge>
-  return <Badge variant="secondary">Pending</Badge>
-}
 
 function TributeForm({
   initial,
@@ -144,111 +129,10 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
   const [editOpen, setEditOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<TributeRow | null>(null)
 
-  const columns = React.useMemo<DataTableColumn<TributeRow>[]>(() => [
-    {
-      key: "name",
-      header: "Author",
-      sortable: true,
-      sortValue: (r) => r.name ?? "",
-      render: (row) => <span className="font-medium">{row.name}</span>,
-    },
-    {
-      key: "status",
-      header: "Status",
-      sortable: false,
-      render: (row) => <div className="flex items-center gap-2">{statusBadge(row.status)}</div>,
-    },
-    {
-      key: "message",
-      header: "Message",
-      render: (row) => (
-        <span className="max-w-xs text-muted-foreground">
-          {(row.message ?? "").slice(0, 80)}
-          {(row.message ?? "").length > 80 ? "..." : ""}
-        </span>
-      ),
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      render: (row) => (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              setEditing(row)
-              setEditOpen(true)
-            }}
-          >
-            <Pencil className="mr-2 size-4" />
-            Edit
-          </Button>
-
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={async () => {
-              const res = await deleteTribute(row.id)
-              if (!res.ok) {
-                toast.error(res.message)
-                return
-              }
-              toast.success("Tribute deleted.")
-              router.refresh()
-            }}
-          >
-            <Trash2 className="mr-2 size-4" />
-            Delete
-          </Button>
-
-          {row.status === "pending" ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  const res = await approveTribute(row.id)
-                  if (!res.ok) {
-                    toast.error(res.message)
-                    return
-                  }
-                  toast.success("Tribute approved.")
-                  router.refresh()
-                }}
-              >
-                <ThumbsUp className="mr-2 size-4" />
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  const res = await rejectTribute(row.id)
-                  if (!res.ok) {
-                    toast.error(res.message)
-                    return
-                  }
-                  toast.success("Tribute rejected.")
-                  router.refresh()
-                }}
-              >
-                <ThumbsDown className="mr-2 size-4" />
-                Reject
-              </Button>
-            </>
-          ) : null}
-        </div>
-      ),
-    },
-  ], [router])
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Tributes</h1>
-        </div>
+        <h1 className="text-2xl font-semibold">Tributes</h1>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <Button onClick={() => setCreateOpen(true)}>
@@ -258,9 +142,7 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create Tribute</DialogTitle>
-              <DialogDescription>
-                Submit a tribute and set it to pending.
-              </DialogDescription>
+              <DialogDescription>Add a new tribute.</DialogDescription>
             </DialogHeader>
 
             <TributeForm
@@ -284,23 +166,70 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
         </Dialog>
       </div>
 
-      <Card className="bg-transparent ring-0">
-        <CardContent>
-          {tributes.length === 0 ? (
-            <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
-              No tributes yet. When someone submits via the public site, they will appear here for approval.
-            </div>
-          ) : (
-            <DataTable data={tributes} columns={columns} />
-          )}
-        </CardContent>
-      </Card>
+      {tributes.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+          No tributes yet. Click "New Tribute" to add one.
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {tributes.map((t) => (
+            <Card key={t.id} className="border-border/60 bg-background/30">
+              {t.image_url ? (
+                <div className="h-40 w-full overflow-hidden rounded-t-xl">
+                  <img
+                    src={t.image_url}
+                    alt={t.name ?? "Tribute"}
+                    className="size-full object-cover"
+                  />
+                </div>
+              ) : null}
+              <CardContent className="flex flex-col gap-3 p-4">
+                <div>
+                  <p className="font-medium">{t.name}</p>
+                  <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">
+                    {t.message}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setEditing(t)
+                      setEditOpen(true)
+                    }}
+                  >
+                    <Pencil className="mr-1.5 size-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={async () => {
+                      const res = await deleteTribute(t.id)
+                      if (!res.ok) {
+                        toast.error(res.message)
+                        return
+                      }
+                      toast.success("Tribute deleted.")
+                      router.refresh()
+                    }}
+                  >
+                    <Trash2 className="mr-1.5 size-3.5" />
+                    Delete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Tribute</DialogTitle>
-            <DialogDescription>Update details (approval status is manual).</DialogDescription>
+            <DialogDescription>Update tribute details.</DialogDescription>
           </DialogHeader>
 
           {editing ? (
@@ -328,4 +257,3 @@ export function TributesAdmin({ tributes }: { tributes: TributeRow[] }) {
     </div>
   )
 }
-
