@@ -21,10 +21,15 @@ export function createSupabaseServerClient() {
         }))
       },
       async setAll(cookiesToSet) {
-        const cookieStore = await cookies()
-        cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options)
-        })
+        try {
+          const cookieStore = await cookies()
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options)
+          })
+        } catch {
+          // Server Components / most RSC contexts cannot set cookies. Session refresh
+          // is applied in middleware (or Server Actions / Route Handlers) instead.
+        }
       },
     },
   })

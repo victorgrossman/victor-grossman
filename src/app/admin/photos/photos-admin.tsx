@@ -38,7 +38,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { createPhoto, deletePhoto, updatePhoto } from "./_actions"
 
 const photoSchema = z.object({
-  title: z.string().min(1, "Caption is required."),
+  title: z.string(),
   image: z.any().optional(),
 })
 
@@ -54,10 +54,12 @@ function PhotoForm({
   initial,
   onCancel,
   onSubmit,
+  variant = "edit",
 }: {
   initial?: Partial<PhotoRow>
   onCancel: () => void
   onSubmit: (values: PhotoFormValues, file?: File) => Promise<void>
+  variant?: "create" | "edit"
 }) {
   const form = useForm<PhotoFormValues>({
     resolver: zodResolver(photoSchema),
@@ -68,6 +70,11 @@ function PhotoForm({
   const [pending, startTransition] = useTransition()
   const router = useRouter()
   const watchedImage = form.watch("image") as FileList | undefined
+
+  const imageHint =
+    variant === "create"
+      ? "Choose an image file (required for new photos)."
+      : "Leave empty to keep the current image."
 
   async function handleSubmit(values: PhotoFormValues) {
     const file = watchedImage?.[0]
@@ -85,7 +92,7 @@ function PhotoForm({
         className="flex flex-col gap-4"
       >
         <div className="space-y-2">
-          <Label htmlFor="title">Caption</Label>
+          <Label htmlFor="title">Caption (optional)</Label>
           <Input
             id="title"
             placeholder="e.g. Victor at the Danube, 1952"
@@ -99,13 +106,14 @@ function PhotoForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="image">Image (optional)</Label>
+          <Label htmlFor="image">Image</Label>
           <Input
             id="image"
             type="file"
             accept="image/*"
             {...form.register("image")}
           />
+          <p className="text-xs text-muted-foreground">{imageHint}</p>
         </div>
 
         <DialogFooter>
@@ -150,17 +158,22 @@ export function PhotosAdmin({ photos }: { photos: PhotoRow[] }) {
             <DialogHeader>
               <DialogTitle>Create Photo</DialogTitle>
               <DialogDescription>
-                Add a caption and upload an image. Images are stored on ImageKit
-                and shown in your public gallery.
+                Upload an image (caption optional). Files go to ImageKit and appear
+                in your public gallery.
               </DialogDescription>
             </DialogHeader>
 
             <PhotoForm
+              variant="create"
               onCancel={() => setCreateOpen(false)}
               onSubmit={async (values, file) => {
+                if (!file) {
+                  toast.error("Please choose an image.")
+                  return
+                }
                 const formData = new FormData()
                 formData.append("title", values.title)
-                if (file) formData.append("image", file)
+                formData.append("image", file)
 
                 const res = await createPhoto(formData)
                 if (!res.ok) {
@@ -207,7 +220,7 @@ export function PhotosAdmin({ photos }: { photos: PhotoRow[] }) {
 
                 <div className="flex min-h-0 flex-1 flex-col px-3 pt-2.5 pb-0">
                   <p className="text-sm font-semibold leading-tight tracking-tight line-clamp-3">
-                    {photo.title ?? "—"}
+                    {photo.title?.trim() || "—"}
                   </p>
                 </div>
 
@@ -245,12 +258,13 @@ export function PhotosAdmin({ photos }: { photos: PhotoRow[] }) {
           <DialogHeader>
             <DialogTitle>Edit Photo</DialogTitle>
             <DialogDescription>
-              Update the caption or replace the image.
+              Caption is optional. Replace the file only if you want a new image.
             </DialogDescription>
           </DialogHeader>
 
           {editing ? (
             <PhotoForm
+              variant="edit"
               initial={editing}
               onCancel={() => setEditOpen(false)}
               onSubmit={async (values, file) => {

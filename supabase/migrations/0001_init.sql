@@ -22,7 +22,7 @@ $$ language plpgsql;
 -- Photos
 create table if not exists public.photos (
   id uuid primary key default gen_random_uuid(),
-  title text not null,
+  title text,
   image_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

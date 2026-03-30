@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import { uploadToImageKit } from "@/lib/imagekit"
+import {
+  deleteImageKitFileByPublicUrl,
+  uploadToImageKit,
+} from "@/lib/imagekit"
 
 export async function createBook(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim()
@@ -44,16 +47,19 @@ export async function updateBook(bookId: string, formData: FormData) {
 
   const supabase = createSupabaseServerClient()
 
+  const { data: existing } = await supabase
+    .from("books")
+    .select("image_url")
+    .eq("id", bookId)
+    .single()
+
+  const previousUrl = existing?.image_url ?? ""
+
   let image_url = ""
   if (imageFile && imageFile.size > 0) {
     image_url = await uploadToImageKit(imageFile, "books")
   } else {
-    const { data } = await supabase
-      .from("books")
-      .select("image_url")
-      .eq("id", bookId)
-      .single()
-    image_url = data?.image_url ?? ""
+    image_url = previousUrl
   }
 
   const { error } = await supabase
@@ -62,6 +68,16 @@ export async function updateBook(bookId: string, formData: FormData) {
     .eq("id", bookId)
 
   if (error) return { ok: false as const, message: error.message }
+
+  if (
+    imageFile &&
+    imageFile.size > 0 &&
+    previousUrl &&
+    previousUrl !== image_url
+  ) {
+    await deleteImageKitFileByPublicUrl(previousUrl)
+  }
+
   revalidatePath("/admin/books")
   return { ok: true as const }
 }
@@ -70,9 +86,18 @@ export async function deleteBook(bookId: string) {
   if (!bookId) return { ok: false as const, message: "Missing id." }
 
   const supabase = createSupabaseServerClient()
+
+  const { data: row } = await supabase
+    .from("books")
+    .select("image_url")
+    .eq("id", bookId)
+    .single()
+
   const { error } = await supabase.from("books").delete().eq("id", bookId)
 
   if (error) return { ok: false as const, message: error.message }
+
+  await deleteImageKitFileByPublicUrl(row?.image_url)
   revalidatePath("/admin/books")
   return { ok: true as const }
 }

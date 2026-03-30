@@ -7,7 +7,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "import:photos": "node scripts/import-photos.mjs"
+    "import:photos": "node scripts/import-photos.mjs",
+    "import:articles:wp": "node scripts/import-articles-wordpress.mjs",
+    "import:tributes:wechsler": "node scripts/import-tributes-wechsler-memories.mjs",
+    "import:articles:wechsler": "node scripts/import-articles-wechsler.mjs",
+    "import:photos:wechsler": "node scripts/import-photos-wechsler-archive.mjs",
+    "import:photos:wechsler:browser": "node scripts/import-photos-wechsler-archive.mjs --from=browser",
+    "imagekit:init-folders": "node scripts/imagekit-create-cms-folders.mjs",
+    "scrape:books": "node scripts/scrape-books-buecher.mjs",
+    "prune:imagekit:books": "node scripts/prune-imagekit-books.mjs",
+    "scrape:photos": "node scripts/import-photos-wechsler-archive.mjs",
+    "scrape:photos:wordpress": "node scripts/scrape-photos-wordpress.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -41,6 +51,7 @@
     "@types/sharp": "^0.31.1",
     "eslint": "^9",
     "eslint-config-next": "^15.5.14",
+    "playwright": "^1.51.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

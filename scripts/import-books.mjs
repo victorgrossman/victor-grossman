@@ -2,16 +2,45 @@
  * Fetches all books from the WordPress books page, downloads cover images,
  * compresses them with sharp, uploads to ImageKit, and inserts into Supabase.
  *
+ * Env (from .env.local): NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, IMAGEKIT_PRIVATE_KEY
+ *
  * Usage: node scripts/import-books.mjs
  */
 
 import sharp from "sharp";
+import { imageKitCmsFolder } from "./lib/imagekit-cms-folder.mjs";
+import { readFileSync, existsSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-const SUPABASE_URL = "https://xobxmxcmarcoekvxaqqf.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_XeW3nCQ0LKg5bQbdrO7TPA_mA4qcj_t";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const IMAGEKIT_PRIVATE_KEY = "private_lTpGU28/4SvSRk40b17fqwkD+Fs=";
-const IMAGEKIT_PUBLIC_KEY = "public_R7YLbJ7B1I/9DJVyS5QuKjNR6mU=";
+function loadEnvLocal() {
+  const p = join(__dirname, "..", ".env.local");
+  if (!existsSync(p)) return;
+  const raw = readFileSync(p, "utf8");
+  for (const line of raw.split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const i = t.indexOf("=");
+    if (i === -1) continue;
+    const key = t.slice(0, i).trim();
+    let val = t.slice(i + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = val;
+  }
+}
+
+loadEnvLocal();
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const IMAGEKIT_PRIVATE_KEY = process.env.IMAGEKIT_PRIVATE_KEY;
 
 const books = [
   {
@@ -104,7 +133,7 @@ async function uploadToImageKit(buffer, fileName) {
   const formData = new FormData();
   formData.append("file", new Blob([buffer]), fileName);
   formData.append("fileName", fileName);
-  formData.append("folder", "/cms/books");
+  formData.append("folder", imageKitCmsFolder("books"));
 
   const res = await fetch("https://upload.imagekit.io/api/v2/files/upload", {
     method: "POST",
@@ -142,6 +171,15 @@ async function insertIntoSupabase(row) {
 }
 
 async function main() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.");
+    process.exit(1);
+  }
+  if (!IMAGEKIT_PRIVATE_KEY) {
+    console.error("Missing IMAGEKIT_PRIVATE_KEY.");
+    process.exit(1);
+  }
+
   console.log("=== Books Import ===\n");
   console.log(`Processing ${books.length} books...\n`);
 

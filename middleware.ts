@@ -43,5 +43,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  // Include `/` so auth cookies refresh on the login page; server `setAll` cannot write cookies in RSC.
+  matcher: ["/", "/admin/:path*"],
 }

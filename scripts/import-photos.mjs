@@ -1,6 +1,6 @@
 /**
  * Pulls images from WordPress.com posts (Berlin Bulletin by default), downloads each,
- * compresses with sharp, uploads to ImageKit under /cms/photos, inserts into Supabase.
+ * compresses with sharp, uploads to ImageKit under /<IMAGEKIT_CMS_ROOT or cms>/photos, inserts into Supabase.
  *
  * Prerequisites: sharp (already in package.json), network access.
  *
@@ -19,6 +19,7 @@
  */
 
 import sharp from "sharp";
+import { imageKitCmsFolder } from "./lib/imagekit-cms-folder.mjs";
 import { readFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -201,7 +202,7 @@ async function uploadToImageKit(buffer, fileName) {
   const formData = new FormData();
   formData.append("file", new Blob([buffer]), fileName);
   formData.append("fileName", fileName);
-  formData.append("folder", "/cms/photos");
+  formData.append("folder", imageKitCmsFolder("photos"));
 
   const res = await fetch("https://upload.imagekit.io/api/v2/files/upload", {
     method: "POST",
