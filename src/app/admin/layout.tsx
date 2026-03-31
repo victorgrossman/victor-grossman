@@ -1,9 +1,10 @@
-import { Button } from "@/components/ui/button"
-import { logoutAction } from "./_actions/auth"
-import { MobileNav } from "./_components/mobile-nav"
-import { SidebarNav } from "./_components/sidebar-nav"
-import { SonnerToaster } from "./_components/sonner-toaster"
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { Button } from "@/components/ui/button";
+import { logoutAction } from "./_actions/auth";
+import { MobileNav } from "./_components/mobile-nav";
+import { SidebarNav } from "./_components/sidebar-nav";
+import { SonnerToaster } from "./_components/sonner-toaster";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 const links = [
   { href: "/admin", label: "Dashboard" },
@@ -13,12 +14,23 @@ const links = [
   { href: "/admin/articles", label: "Articles" },
   { href: "/admin/interviews", label: "Interviews" },
   { href: "/admin/bulletins", label: "Bulletins" },
-]
+];
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const email = user?.email ?? ""
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const email = user?.email ?? "";
 
   return (
     <div className="relative h-screen overflow-hidden bg-background text-foreground">
@@ -32,7 +44,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
 
           <div className="shrink-0 flex items-center justify-between gap-2 pt-3 border-t border-border/60 mt-3">
-            <span className="truncate text-sm text-muted-foreground">{email}</span>
+            <span className="truncate text-sm text-muted-foreground">
+              {email}
+            </span>
             <form action={logoutAction}>
               <Button
                 type="submit"
@@ -50,12 +64,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
           <main className="flex-1 px-4 pb-10 sm:px-6 lg:px-8">
             <MobileNav />
-            <div className="rounded-2xl p-6">
-              {children}
-            </div>
+            <div className="rounded-2xl p-6">{children}</div>
           </main>
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+});
+
 export const metadata: Metadata = {
-  title: "Memorial CMS",
-  description: "Admin panel for memorial content management",
+  title: "Victor Grossman Memorial",
+  description: "Public memorial website with CMS admin",
 };
 
 export default function RootLayout({
@@ -13,7 +20,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${inter.variable} ${playfair.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
       </body>
