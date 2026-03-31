@@ -44,7 +44,7 @@ const bookSchema = z.object({
   image: z.any().optional(),
 });
 
-type BookRow = {
+export type BookRow = {
   id: string;
   title: string | null;
   author: string | null;

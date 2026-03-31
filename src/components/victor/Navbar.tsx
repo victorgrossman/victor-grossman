@@ -56,15 +56,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-500 ${
+        className={`fixed top-0 left-0 right-0 z-100 transition-all duration-500 ${
           isLight
             ? "bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm py-3"
             : "bg-black/10 backdrop-blur-[2px] py-5"
         }`}
       >
-        <div className="max-w-[1600px] mx-auto px-6 md:px-10 flex items-center justify-between">
+        <div className="max-w-400 mx-auto px-6 md:px-10 flex items-center justify-between">
           <div
-            className="flex items-center gap-3 cursor-pointer group flex-shrink-0"
+            className="flex items-center gap-3 cursor-pointer group shrink-0"
             onClick={() => onNavigate(Section.Home)}
           >
             <span
@@ -82,7 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
-                  className={`text-[13px] font-black uppercase tracking-widest transition-all hover:text-blue-500 whitespace-nowrap flex-shrink-0 ${
+                  className={`text-[13px] font-black uppercase tracking-widest transition-all hover:text-blue-500 whitespace-nowrap shrink-0 ${
                     currentSection === item.id
                       ? "text-blue-600"
                       : isLight
@@ -92,7 +92,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   {item.label}
                   <div
-                    className={`h-[2px] bg-blue-600 transition-all duration-300 ${currentSection === item.id ? "w-full mt-1" : "w-0 mt-1"}`}
+                    className={`h-0.5 bg-blue-600 transition-all duration-300 ${currentSection === item.id ? "w-full mt-1" : "w-0 mt-1"}`}
                   />
                 </button>
               ))}
@@ -155,7 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </nav>
 
       <div
-        className={`fixed inset-0 z-[90] bg-white transition-all duration-500 xl:hidden ${
+        className={`fixed inset-0 z-90 bg-white transition-all duration-500 xl:hidden ${
           isMenuOpen
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"

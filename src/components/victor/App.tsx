@@ -442,9 +442,10 @@ const App: React.FC = () => {
           ? "Your photo was submitted for review and will appear after approval."
           : "Dein Foto wurde zur Pruefung eingereicht und erscheint nach Freigabe.",
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Archive photo upload failure:", err);
-      const msg = String(err?.message ?? "Unknown error");
+      const msg =
+        err instanceof Error ? err.message : String(err ?? "Unknown error");
       if (
         /bucket|storage|policy|row-level security|permission|violates/i.test(
           msg,
@@ -1900,8 +1901,8 @@ const App: React.FC = () => {
             </div>
             <div className="md:col-span-7 p-8 md:p-16 bg-white border border-slate-200 rounded-[2rem] md:rounded-[3rem] shadow-xl">
               <p className="text-slate-600 text-xl md:text-3xl italic font-serif leading-snug mb-8">
-                "History is not just about what happened, but about who lived it
-                and why their choices matter."
+                &ldquo;History is not just about what happened, but about who
+                lived it and why their choices matter.&rdquo;
               </p>
               <div className="flex items-center gap-4 md:gap-6">
                 <div className="w-8 md:w-10 h-[3px] bg-blue-600 rounded-full" />

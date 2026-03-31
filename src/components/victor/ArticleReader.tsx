@@ -26,7 +26,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   if (!article) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-8 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-0 md:p-8 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
       <div className="absolute inset-0" onClick={onClose} />
 
       <div className="relative w-full h-full md:h-auto md:max-h-[90vh] max-w-4xl bg-white shadow-2xl overflow-y-auto md:rounded-2xl scroll-smooth">
@@ -67,7 +67,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               </span>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent opacity-90" />
+          <div className="absolute inset-0 bg-linear-to-t from-white via-transparent to-transparent opacity-90" />
         </div>
 
         {/* Content */}

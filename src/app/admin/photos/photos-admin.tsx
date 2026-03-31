@@ -48,7 +48,7 @@ const photoSchema = z.object({
   image: z.any().optional(),
 });
 
-type PhotoRow = {
+export type PhotoRow = {
   id: string;
   title: string | null;
   image_url: string | null;

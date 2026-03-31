@@ -1,8 +1,9 @@
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card";
 
 export function AdminPageSkeleton({ heading }: { heading: string }) {
   return (
     <div className="space-y-4">
+      <h1 className="sr-only">{heading}</h1>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="h-7 w-52 animate-pulse rounded bg-muted" />
@@ -18,6 +19,5 @@ export function AdminPageSkeleton({ heading }: { heading: string }) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-

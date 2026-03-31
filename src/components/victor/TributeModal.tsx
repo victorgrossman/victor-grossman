@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import React, { useState, useRef } from "react";
 import { CameraIcon } from "./constants";
@@ -68,7 +68,7 @@ export const TributeModal: React.FC<TributeModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
       <div
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
         onClick={handleClose}
@@ -95,7 +95,7 @@ export const TributeModal: React.FC<TributeModalProps> = ({
               Check your inbox
             </h2>
             <p className="text-slate-600 text-lg leading-relaxed">
-              We've received your tribute. To prevent spam, please check{" "}
+              We have received your tribute. To prevent spam, please check{" "}
               <span className="text-blue-600 font-semibold">{email}</span> for a
               verification link. Your post will appear on the wall once
               confirmed.
@@ -115,7 +115,7 @@ export const TributeModal: React.FC<TributeModalProps> = ({
                   Leave a Tribute
                 </h2>
                 <p className="text-slate-400 text-xs mt-1 uppercase tracking-widest font-black">
-                  Honor Victor's Legacy
+                  Honor Victor Legacy
                 </p>
               </div>
               <button
@@ -191,7 +191,7 @@ export const TributeModal: React.FC<TributeModalProps> = ({
                   </label>
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className={`w-full aspect-[21/9] border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all overflow-hidden ${image ? "border-blue-500/50" : ""}`}
+                    className={`w-full aspect-21/9 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all overflow-hidden ${image ? "border-blue-500/50" : ""}`}
                   >
                     {image ? (
                       <img

@@ -50,7 +50,7 @@ const bulletinSchema = z.object({
   published_date: z.string().optional(),
 });
 
-type BulletinRow = {
+export type BulletinRow = {
   id: string;
   bulletin_number: string | null;
   title: string | null;

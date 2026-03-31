@@ -50,7 +50,7 @@ const tributeSchema = z.object({
   image: z.any().optional(),
 });
 
-type TributeRow = {
+export type TributeRow = {
   id: string;
   name: string | null;
   message: string | null;

@@ -213,7 +213,7 @@ async function main() {
 
   if (!url || !serviceKey) {
     throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in cms-app/.env.local",
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in victor-grossman/.env.local",
     );
   }
 

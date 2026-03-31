@@ -16,10 +16,30 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Testing
+
+Run all tests:
+
+```bash
+npm test
+```
+
+Run unit tests only:
+
+```bash
+npm run test:unit
+```
+
+Run e2e tests only:
+
+```bash
+npm run test:e2e
+```
+
 ## Importing photos (WordPress → ImageKit → Supabase)
 
 1. Copy `.env.local.example` to `.env.local` and add **ImageKit** keys and **`SUPABASE_SERVICE_ROLE_KEY`** (Dashboard → Project Settings → API). Row Level Security only allows authenticated users to insert; the service role bypasses RLS for trusted local scripts.
-2. From `cms-app`, run:
+2. From `victor-grossman` (project folder), run:
 
    ```bash
    npm run import:photos -- --dry-run   # list images that would be imported

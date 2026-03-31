@@ -25,23 +25,23 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onClick }) => {
 
       {/* Image Section */}
       {memory.image && (
-        <div className="relative aspect-[16/10] overflow-hidden">
+        <div className="relative aspect-16/10 overflow-hidden">
           <img
             src={memory.image}
             alt={`Memory by ${memory.author}`}
             className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-transparent to-transparent opacity-0 group-hover:opacity-40 transition-opacity" />
+          <div className="absolute inset-0 bg-linear-to-t from-white/90 via-transparent to-transparent opacity-0 group-hover:opacity-40 transition-opacity" />
         </div>
       )}
 
       {/* Content Section */}
       <div
-        className={`flex flex-col p-6 md:p-8 ${isTextOnly ? "min-h-[220px] justify-center" : ""}`}
+        className={`flex flex-col p-6 md:p-8 ${isTextOnly ? "min-h-55 justify-center" : ""}`}
       >
         <div className="flex items-center gap-3 mb-6">
           <div
-            className={`flex-shrink-0 w-10 h-10 rounded-full ${memory.color} flex items-center justify-center text-white font-bold text-sm ring-4 ring-white shadow-lg`}
+            className={`shrink-0 w-10 h-10 rounded-full ${memory.color} flex items-center justify-center text-white font-bold text-sm ring-4 ring-white shadow-lg`}
           >
             {memory.initials}
           </div>
@@ -66,7 +66,7 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onClick }) => {
                 : "text-base md:text-lg"
             }`}
           >
-            "{memory.message}"
+            &ldquo;{memory.message}&rdquo;
           </p>
 
           {isLongText && (
@@ -93,7 +93,7 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({ memory, onClick }) => {
       </div>
 
       {/* Decorative bottom bar that illuminates on hover */}
-      <div className="h-1 w-0 bg-gradient-to-r from-transparent via-blue-600/30 to-transparent transition-all duration-700 group-hover:w-full" />
+      <div className="h-1 w-0 bg-linear-to-r from-transparent via-blue-600/30 to-transparent transition-all duration-700 group-hover:w-full" />
     </div>
   );
 };

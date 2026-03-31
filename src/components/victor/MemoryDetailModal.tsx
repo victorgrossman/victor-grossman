@@ -18,7 +18,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
   const isLongMessage = memory.message.length > 350;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 md:p-8">
+    <div className="fixed inset-0 z-70 flex items-center justify-center p-2 md:p-8">
       <div
         className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
         onClick={onClose}
@@ -59,13 +59,13 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
 
         {/* Text Content Side */}
         <div
-          className={`flex flex-col flex-grow overflow-hidden ${memory.image ? "w-full md:w-[45%]" : "w-full"}`}
+          className={`flex flex-col grow overflow-hidden ${memory.image ? "w-full md:w-[45%]" : "w-full"}`}
         >
-          <div className="flex-grow overflow-y-auto custom-scrollbar p-6 md:p-14 lg:p-16">
+          <div className="grow overflow-y-auto custom-scrollbar p-6 md:p-14 lg:p-16">
             {/* Header Info */}
             <div className="flex items-center gap-4 mb-8 md:mb-12">
               <div
-                className={`flex-shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl ${memory.color} flex items-center justify-center text-white font-bold text-xl md:text-2xl shadow-xl ring-4 ring-white`}
+                className={`shrink-0 w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl ${memory.color} flex items-center justify-center text-white font-bold text-xl md:text-2xl shadow-xl ring-4 ring-white`}
               >
                 {memory.initials}
               </div>
@@ -92,7 +92,7 @@ export const MemoryDetailModal: React.FC<MemoryDetailModalProps> = ({
                       : "text-xl md:text-4xl"
                   }`}
                 >
-                  "{memory.message}"
+                  &ldquo;{memory.message}&rdquo;
                 </p>
               </div>
             </div>

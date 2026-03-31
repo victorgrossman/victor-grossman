@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { PhotosAdmin } from "./photos-admin";
+import { PhotosAdmin, type PhotoRow } from "./photos-admin";
 
 export default async function PhotosPage() {
   try {
@@ -30,7 +30,7 @@ export default async function PhotosPage() {
       }
     }
 
-    return <PhotosAdmin photos={(rows ?? []) as any} />;
+    return <PhotosAdmin photos={(rows ?? []) as PhotoRow[]} />;
   } catch {
     return <PhotosAdmin photos={[]} />;
   }

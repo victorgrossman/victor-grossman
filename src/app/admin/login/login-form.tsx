@@ -1,45 +1,45 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useTransition } from "react"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { toast } from "sonner"
+import * as React from "react";
+import { useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 
-import { signInAction } from "../_actions/auth"
+import { signInAction } from "../_actions/auth";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email."),
   password: z.string().min(6, "Password must be at least 6 characters."),
-})
+});
 
-type FormValues = z.infer<typeof schema>
+type FormValues = z.infer<typeof schema>;
 
 export function LoginForm() {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useTransition();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: "", password: "" },
     mode: "onChange",
-  })
+  });
 
   async function onSubmit(values: FormValues) {
     startTransition(async () => {
       try {
-        const formData = new FormData()
-        formData.append("email", values.email)
-        formData.append("password", values.password)
+        const formData = new FormData();
+        formData.append("email", values.email);
+        formData.append("password", values.password);
 
-        await signInAction(formData)
-      } catch (err) {
-        toast.error("Login failed. Please check your credentials.")
+        await signInAction(formData);
+      } catch {
+        toast.error("Login failed. Please check your credentials.");
       }
-    })
+    });
   }
 
   return (
@@ -81,6 +81,5 @@ export function LoginForm() {
         {pending ? "Signing in..." : "Sign in"}
       </Button>
     </form>
-  )
+  );
 }
-

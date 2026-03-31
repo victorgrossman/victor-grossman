@@ -45,7 +45,7 @@ const interviewSchema = z.object({
   image: z.any().optional(),
 });
 
-type InterviewRow = {
+export type InterviewRow = {
   id: string;
   title: string | null;
   person: string | null;
