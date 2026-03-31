@@ -251,7 +251,6 @@ export function PhotosAdmin({ photos }: { photos: PhotoRow[] }) {
               >
                 <div className="relative aspect-square w-full shrink-0 bg-muted/25">
                   {photo.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- ImageKit / external URLs
                     <img
                       src={photo.image_url}
                       alt={photo.title ?? "Photo"}

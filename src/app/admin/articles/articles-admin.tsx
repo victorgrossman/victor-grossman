@@ -498,7 +498,6 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
               <div className={articleDialogScrollClassName}>
                 {viewing.image_url ? (
                   <div className="mb-4 overflow-hidden rounded-lg border border-border/60 bg-muted/20">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={viewing.image_url}
                       alt=""

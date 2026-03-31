@@ -1,15 +1,15 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useTransition } from "react"
-import { useRouter } from "next/navigation"
-import { z } from "zod"
+import * as React from "react";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { z } from "zod";
 
-import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -18,7 +18,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -26,44 +26,44 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { compressImageFile } from "@/lib/image-compress"
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { compressImageFile } from "@/lib/image-compress";
 
-import { createBook, deleteBook, updateBook } from "./_actions"
+import { createBook, deleteBook, updateBook } from "./_actions";
 
 const bookSchema = z.object({
   title: z.string().min(1, "Title is required."),
   author: z.string().min(1, "Author is required."),
   description: z.string().optional(),
   image: z.any().optional(),
-})
+});
 
 type BookRow = {
-  id: string
-  title: string | null
-  author: string | null
-  description: string | null
-  image_url: string | null
-}
+  id: string;
+  title: string | null;
+  author: string | null;
+  description: string | null;
+  image_url: string | null;
+};
 
-type BookFormValues = z.infer<typeof bookSchema>
+type BookFormValues = z.infer<typeof bookSchema>;
 
 function BookForm({
   initial,
   onCancel,
   onSubmit,
 }: {
-  initial?: Partial<BookRow>
-  onCancel: () => void
-  onSubmit: (values: BookFormValues, file?: File) => Promise<void>
+  initial?: Partial<BookRow>;
+  onCancel: () => void;
+  onSubmit: (values: BookFormValues, file?: File) => Promise<void>;
 }) {
-  const router = useRouter()
+  const router = useRouter();
   const form = useForm<BookFormValues>({
     resolver: zodResolver(bookSchema),
     defaultValues: {
@@ -73,18 +73,18 @@ function BookForm({
       image: undefined,
     },
     mode: "onChange",
-  })
+  });
 
-  const [pending, startTransition] = useTransition()
-  const watchedImage = form.watch("image") as FileList | undefined
+  const [pending, startTransition] = useTransition();
+  const watchedImage = form.watch("image") as FileList | undefined;
 
   async function handleSubmit(values: BookFormValues) {
-    const file = watchedImage?.[0]
+    const file = watchedImage?.[0];
     startTransition(async () => {
-      const compressed = file ? await compressImageFile(file) : undefined
-      await onSubmit(values, compressed)
-      router.refresh()
-    })
+      const compressed = file ? await compressImageFile(file) : undefined;
+      await onSubmit(values, compressed);
+      router.refresh();
+    });
   }
 
   return (
@@ -94,7 +94,11 @@ function BookForm({
     >
       <div className="space-y-2">
         <Label htmlFor="title">Book title</Label>
-        <Input id="title" placeholder="e.g. Unterwegs zu Angela" {...form.register("title")} />
+        <Input
+          id="title"
+          placeholder="e.g. Unterwegs zu Angela"
+          {...form.register("title")}
+        />
         {form.formState.errors.title ? (
           <p className="text-sm text-destructive">
             {form.formState.errors.title.message}
@@ -104,7 +108,11 @@ function BookForm({
 
       <div className="space-y-2">
         <Label htmlFor="author">Author</Label>
-        <Input id="author" placeholder="e.g. Walter Kaufmann" {...form.register("author")} />
+        <Input
+          id="author"
+          placeholder="e.g. Walter Kaufmann"
+          {...form.register("author")}
+        />
         {form.formState.errors.author ? (
           <p className="text-sm text-destructive">
             {form.formState.errors.author.message}
@@ -141,16 +149,17 @@ function BookForm({
         </Button>
       </DialogFooter>
     </form>
-  )
+  );
 }
 
 export function BooksAdmin({ books }: { books: BookRow[] }) {
-  const router = useRouter()
-  const [createOpen, setCreateOpen] = React.useState(false)
-  const [editOpen, setEditOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<BookRow | null>(null)
-  const [bookPendingDelete, setBookPendingDelete] = React.useState<BookRow | null>(null)
-  const [deletePending, setDeletePending] = React.useState(false)
+  const router = useRouter();
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<BookRow | null>(null);
+  const [bookPendingDelete, setBookPendingDelete] =
+    React.useState<BookRow | null>(null);
+  const [deletePending, setDeletePending] = React.useState(false);
 
   return (
     <div className="space-y-6">
@@ -167,25 +176,27 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create Book</DialogTitle>
-              <DialogDescription>Add details and an optional cover image.</DialogDescription>
+              <DialogDescription>
+                Add details and an optional cover image.
+              </DialogDescription>
             </DialogHeader>
 
             <BookForm
               onCancel={() => setCreateOpen(false)}
               onSubmit={async (values, file) => {
-                const formData = new FormData()
-                formData.append("title", values.title)
-                formData.append("author", values.author)
-                formData.append("description", values.description ?? "")
-                if (file) formData.append("image", file)
+                const formData = new FormData();
+                formData.append("title", values.title);
+                formData.append("author", values.author);
+                formData.append("description", values.description ?? "");
+                if (file) formData.append("image", file);
 
-                const res = await createBook(formData)
+                const res = await createBook(formData);
                 if (!res.ok) {
-                  toast.error(res.message)
-                  return
+                  toast.error(res.message);
+                  return;
                 }
-                toast.success("Book created.")
-                setCreateOpen(false)
+                toast.success("Book created.");
+                setCreateOpen(false);
               }}
             />
           </DialogContent>
@@ -194,7 +205,9 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
 
       {books.length === 0 ? (
         <div className="rounded-lg bg-transparent p-8 text-center text-sm text-muted-foreground">
-          No books yet. Click <span className="font-medium text-foreground">New Book</span> to add the first one.
+          No books yet. Click{" "}
+          <span className="font-medium text-foreground">New Book</span> to add
+          the first one.
         </div>
       ) : (
         <div className="grid items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -206,7 +219,6 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
               {/* Cover: flush to card top — no extra padding from Card */}
               <div className="relative aspect-4/5 w-full shrink-0 bg-muted/25">
                 {book.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- external CMS URLs (ImageKit, etc.)
                   <img
                     src={book.image_url}
                     alt={book.title ?? "Book cover"}
@@ -241,8 +253,8 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
                   variant="ghost"
                   className="h-8 px-3 text-xs font-medium"
                   onClick={() => {
-                    setEditing(book)
-                    setEditOpen(true)
+                    setEditing(book);
+                    setEditOpen(true);
                   }}
                 >
                   Edit
@@ -266,7 +278,9 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Book</DialogTitle>
-            <DialogDescription>Update fields and optionally replace the cover image.</DialogDescription>
+            <DialogDescription>
+              Update fields and optionally replace the cover image.
+            </DialogDescription>
           </DialogHeader>
 
           {editing ? (
@@ -274,19 +288,19 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
               initial={editing}
               onCancel={() => setEditOpen(false)}
               onSubmit={async (values, file) => {
-                const formData = new FormData()
-                formData.append("title", values.title)
-                formData.append("author", values.author)
-                formData.append("description", values.description ?? "")
-                if (file) formData.append("image", file)
+                const formData = new FormData();
+                formData.append("title", values.title);
+                formData.append("author", values.author);
+                formData.append("description", values.description ?? "");
+                if (file) formData.append("image", file);
 
-                const res = await updateBook(editing.id, formData)
+                const res = await updateBook(editing.id, formData);
                 if (!res.ok) {
-                  toast.error(res.message)
-                  return
+                  toast.error(res.message);
+                  return;
                 }
-                toast.success("Book updated.")
-                setEditOpen(false)
+                toast.success("Book updated.");
+                setEditOpen(false);
               }}
             />
           ) : null}
@@ -297,8 +311,8 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
         open={!!bookPendingDelete}
         onOpenChange={(open) => {
           if (!open) {
-            setBookPendingDelete(null)
-            setDeletePending(false)
+            setBookPendingDelete(null);
+            setDeletePending(false);
           }
         }}
       >
@@ -318,23 +332,25 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletePending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletePending}>
+              Cancel
+            </AlertDialogCancel>
             <Button
               type="button"
               variant="destructive"
               disabled={deletePending}
               onClick={async () => {
-                if (!bookPendingDelete) return
-                setDeletePending(true)
-                const res = await deleteBook(bookPendingDelete.id)
-                setDeletePending(false)
+                if (!bookPendingDelete) return;
+                setDeletePending(true);
+                const res = await deleteBook(bookPendingDelete.id);
+                setDeletePending(false);
                 if (!res.ok) {
-                  toast.error(res.message)
-                  return
+                  toast.error(res.message);
+                  return;
                 }
-                toast.success("Book deleted.")
-                setBookPendingDelete(null)
-                router.refresh()
+                toast.success("Book deleted.");
+                setBookPendingDelete(null);
+                router.refresh();
               }}
             >
               {deletePending ? "Deleting…" : "Delete"}
@@ -343,6 +359,5 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
-
