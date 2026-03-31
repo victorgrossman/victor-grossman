@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import { Navbar } from "./Navbar";
@@ -298,7 +298,7 @@ const App: React.FC = () => {
           initials:
             d.name
               .split(" ")
-              .map((n) => n[0])
+              .map((n: string) => n[0])
               .join("")
               .toUpperCase()
               .slice(0, 2) || "??",

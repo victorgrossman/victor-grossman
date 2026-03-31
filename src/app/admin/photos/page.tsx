@@ -10,7 +10,7 @@ export default async function PhotosPage() {
       .order("created_at", { ascending: false })
       .limit(200);
 
-    let data = primary.data;
+    let rows = primary.data as Record<string, unknown>[] | null;
     if (primary.error) {
       const msg = (primary.error.message ?? "").toLowerCase();
       if (
@@ -24,13 +24,13 @@ export default async function PhotosPage() {
           .select("id,title,image_url")
           .order("created_at", { ascending: false })
           .limit(200);
-        data = legacy.data;
+        rows = legacy.data as Record<string, unknown>[] | null;
       } else {
         throw primary.error;
       }
     }
 
-    return <PhotosAdmin photos={(data ?? []) as any} />;
+    return <PhotosAdmin photos={(rows ?? []) as any} />;
   } catch {
     return <PhotosAdmin photos={[]} />;
   }
