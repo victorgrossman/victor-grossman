@@ -1,14 +1,24 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
-import { useTransition } from "react"
-import { z } from "zod"
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { z } from "zod";
 
-import { toast } from "sonner"
-import { Eye, Plus, Pencil, Trash2 } from "lucide-react"
+import { toast } from "sonner";
+import { Eye, Plus, Pencil, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -16,23 +26,23 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { DataTable, type DataTableColumn } from "@/components/data-table"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { DataTable, type DataTableColumn } from "@/components/data-table";
 
-import { useForm, Controller } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { compressImageFile } from "@/lib/image-compress"
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { compressImageFile } from "@/lib/image-compress";
 
-import { createArticle, deleteArticle, updateArticle } from "./_actions"
+import { createArticle, deleteArticle, updateArticle } from "./_actions";
 
 const articleDialogClassName =
-  "flex max-h-[90vh] w-[min(100vw-1.5rem,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+  "flex max-h-[90vh] w-[min(100vw-1.5rem,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl";
 
-const articleDialogScrollClassName = "flex-1 overflow-y-auto px-6 py-4"
+const articleDialogScrollClassName = "flex-1 overflow-y-auto px-6 py-4";
 
 const articleSchema = z.object({
   title: z.string().min(1, "Title is required."),
@@ -42,33 +52,33 @@ const articleSchema = z.object({
   author: z.string().optional(),
   is_published: z.boolean(),
   image: z.any().optional(),
-})
+});
 
 type ArticleRow = {
-  id: string
-  title: string | null
-  excerpt: string | null
-  content: string | null
-  image_url: string | null
-  category?: string | null
-  author?: string | null
-  wp_post_id?: number | null
-  is_published?: boolean | null
-  created_at?: string | null
-}
+  id: string;
+  title: string | null;
+  excerpt: string | null;
+  content: string | null;
+  image_url: string | null;
+  category?: string | null;
+  author?: string | null;
+  wp_post_id?: number | null;
+  is_published?: boolean | null;
+  created_at?: string | null;
+};
 
-type ArticleFormValues = z.infer<typeof articleSchema>
+type ArticleFormValues = z.infer<typeof articleSchema>;
 
 function formatArticleDate(iso: string | null | undefined) {
-  if (!iso) return "—"
+  if (!iso) return "—";
   try {
     return new Date(iso).toLocaleDateString(undefined, {
       year: "numeric",
       month: "short",
       day: "numeric",
-    })
+    });
   } catch {
-    return iso
+    return iso;
   }
 }
 
@@ -78,12 +88,12 @@ function ArticleForm({
   onSubmit,
   variant = "edit",
 }: {
-  initial?: Partial<ArticleRow>
-  onCancel: () => void
-  onSubmit: (values: ArticleFormValues, file?: File) => Promise<void>
-  variant?: "create" | "edit"
+  initial?: Partial<ArticleRow>;
+  onCancel: () => void;
+  onSubmit: (values: ArticleFormValues, file?: File) => Promise<void>;
+  variant?: "create" | "edit";
 }) {
-  const router = useRouter()
+  const router = useRouter();
   const form = useForm<ArticleFormValues>({
     resolver: zodResolver(articleSchema),
     defaultValues: {
@@ -96,27 +106,30 @@ function ArticleForm({
       image: undefined,
     },
     mode: "onChange",
-  })
+  });
 
-  const [pending, startTransition] = useTransition()
-  const watchedImage = form.watch("image") as FileList | undefined
+  const [pending, startTransition] = useTransition();
+  const watchedImage = form.watch("image") as FileList | undefined;
 
   const imageHint =
     variant === "create"
       ? "Optional cover image for listings."
-      : "Leave empty to keep the current cover image."
+      : "Leave empty to keep the current cover image.";
 
   async function handleSubmit(values: ArticleFormValues) {
-    const file = watchedImage?.[0]
+    const file = watchedImage?.[0];
     startTransition(async () => {
-      const compressed = file ? await compressImageFile(file) : undefined
-      await onSubmit(values, compressed)
-      router.refresh()
-    })
+      const compressed = file ? await compressImageFile(file) : undefined;
+      await onSubmit(values, compressed);
+      router.refresh();
+    });
   }
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+    <form
+      onSubmit={form.handleSubmit(handleSubmit)}
+      className="flex flex-col gap-4"
+    >
       <div className="space-y-2">
         <Label htmlFor="article-title">Title</Label>
         <Input
@@ -125,7 +138,9 @@ function ArticleForm({
           {...form.register("title")}
         />
         {form.formState.errors.title ? (
-          <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>
+          <p className="text-sm text-destructive">
+            {form.formState.errors.title.message}
+          </p>
         ) : null}
       </div>
 
@@ -166,7 +181,9 @@ function ArticleForm({
           {...form.register("content")}
         />
         {form.formState.errors.content ? (
-          <p className="text-sm text-destructive">{form.formState.errors.content.message}</p>
+          <p className="text-sm text-destructive">
+            {form.formState.errors.content.message}
+          </p>
         ) : null}
       </div>
 
@@ -176,7 +193,8 @@ function ArticleForm({
             Published
           </Label>
           <p className="text-xs text-muted-foreground">
-            When off, hide from public article lists (if your site checks this flag).
+            When off, hide from public article lists (if your site checks this
+            flag).
           </p>
         </div>
         <Controller
@@ -212,16 +230,18 @@ function ArticleForm({
         </Button>
       </DialogFooter>
     </form>
-  )
+  );
 }
 
 export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
-  const router = useRouter()
-  const [createOpen, setCreateOpen] = React.useState(false)
-  const [createNonce, setCreateNonce] = React.useState(0)
-  const [editOpen, setEditOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<ArticleRow | null>(null)
-  const [viewing, setViewing] = React.useState<ArticleRow | null>(null)
+  const router = useRouter();
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [createNonce, setCreateNonce] = React.useState(0);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<ArticleRow | null>(null);
+  const [viewing, setViewing] = React.useState<ArticleRow | null>(null);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState<ArticleRow | null>(null);
 
   const columns = React.useMemo<DataTableColumn<ArticleRow>[]>(
     () => [
@@ -242,7 +262,9 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         sortValue: (r) => r.title ?? "",
         columnClassName: "min-w-[11rem] max-w-[16rem] align-top",
         render: (row) => (
-          <span className="line-clamp-2 font-medium text-sm leading-snug">{row.title}</span>
+          <span className="line-clamp-2 font-medium text-sm leading-snug">
+            {row.title}
+          </span>
         ),
       },
       {
@@ -263,7 +285,9 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         sortValue: (r) => r.category ?? "",
         columnClassName: "w-[7rem] align-top",
         render: (row) => (
-          <span className="text-xs text-muted-foreground">{row.category ?? "—"}</span>
+          <span className="text-xs text-muted-foreground">
+            {row.category ?? "—"}
+          </span>
         ),
       },
       {
@@ -273,7 +297,9 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         sortValue: (r) => r.author ?? "",
         columnClassName: "max-w-[8rem] align-top",
         render: (row) => (
-          <span className="line-clamp-2 text-xs text-muted-foreground">{row.author ?? "—"}</span>
+          <span className="line-clamp-2 text-xs text-muted-foreground">
+            {row.author ?? "—"}
+          </span>
         ),
       },
       {
@@ -311,8 +337,8 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
               className="size-8"
               title="Edit"
               onClick={() => {
-                setEditing(row)
-                setEditOpen(true)
+                setEditing(row);
+                setEditOpen(true);
               }}
             >
               <Pencil className="size-3.5" />
@@ -323,14 +349,9 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
               variant="ghost"
               className="size-8 text-destructive hover:text-destructive"
               title="Delete"
-              onClick={async () => {
-                const res = await deleteArticle(row.id)
-                if (!res.ok) {
-                  toast.error(res.message)
-                  return
-                }
-                toast.success("Article deleted.")
-                router.refresh()
+              onClick={() => {
+                setDeleting(row);
+                setDeleteOpen(true);
               }}
             >
               <Trash2 className="size-3.5" />
@@ -340,7 +361,7 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
       },
     ],
     [router],
-  )
+  );
 
   return (
     <div className="w-full max-w-full space-y-6">
@@ -352,8 +373,8 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <Button
             onClick={() => {
-              setCreateNonce((n) => n + 1)
-              setCreateOpen(true)
+              setCreateNonce((n) => n + 1);
+              setCreateOpen(true);
             }}
           >
             <Plus className="mr-2 size-4" />
@@ -364,7 +385,8 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
               <DialogHeader className="gap-1 text-left">
                 <DialogTitle>Create Article</DialogTitle>
                 <DialogDescription>
-                  Add title, optional excerpt and cover, and full article content.
+                  Add title, optional excerpt and cover, and full article
+                  content.
                 </DialogDescription>
               </DialogHeader>
             </div>
@@ -374,22 +396,25 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                 variant="create"
                 onCancel={() => setCreateOpen(false)}
                 onSubmit={async (values, file) => {
-                  const formData = new FormData()
-                  formData.append("title", values.title)
-                  formData.append("excerpt", values.excerpt ?? "")
-                  formData.append("content", values.content)
-                  formData.append("category", values.category ?? "")
-                  formData.append("author", values.author ?? "")
-                  formData.append("is_published", values.is_published ? "true" : "false")
-                  if (file) formData.append("image", file)
+                  const formData = new FormData();
+                  formData.append("title", values.title);
+                  formData.append("excerpt", values.excerpt ?? "");
+                  formData.append("content", values.content);
+                  formData.append("category", values.category ?? "");
+                  formData.append("author", values.author ?? "");
+                  formData.append(
+                    "is_published",
+                    values.is_published ? "true" : "false",
+                  );
+                  if (file) formData.append("image", file);
 
-                  const res = await createArticle(formData)
+                  const res = await createArticle(formData);
                   if (!res.ok) {
-                    toast.error(res.message)
-                    return
+                    toast.error(res.message);
+                    return;
                   }
-                  toast.success("Article created.")
-                  setCreateOpen(false)
+                  toast.success("Article created.");
+                  setCreateOpen(false);
                 }}
               />
             </div>
@@ -401,7 +426,8 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         {articles.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">
             No articles yet. Use{" "}
-            <span className="font-medium text-foreground">New Article</span> to add one.
+            <span className="font-medium text-foreground">New Article</span> to
+            add one.
           </div>
         ) : (
           <div className="w-full overflow-x-auto p-3 sm:p-4">
@@ -414,7 +440,10 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         )}
       </div>
 
-      <Dialog open={!!viewing} onOpenChange={(open) => !open && setViewing(null)}>
+      <Dialog
+        open={!!viewing}
+        onOpenChange={(open) => !open && setViewing(null)}
+      >
         <DialogContent className={articleDialogClassName} showCloseButton>
           {viewing ? (
             <>
@@ -430,13 +459,17 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                     {viewing.category ? (
                       <span>
                         Category:{" "}
-                        <span className="font-medium text-foreground">{viewing.category}</span>
+                        <span className="font-medium text-foreground">
+                          {viewing.category}
+                        </span>
                       </span>
                     ) : null}
                     {viewing.author ? (
                       <span>
                         Author:{" "}
-                        <span className="font-medium text-foreground">{viewing.author}</span>
+                        <span className="font-medium text-foreground">
+                          {viewing.author}
+                        </span>
                       </span>
                     ) : null}
                     {viewing.wp_post_id != null ? (
@@ -499,11 +532,11 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                   type="button"
                   className="min-w-22"
                   onClick={() => {
-                    const row = viewing
-                    setViewing(null)
+                    const row = viewing;
+                    setViewing(null);
                     if (row) {
-                      setEditing(row)
-                      setEditOpen(true)
+                      setEditing(row);
+                      setEditOpen(true);
                     }
                   }}
                 >
@@ -520,7 +553,9 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
           <div className="shrink-0 border-b px-6 pt-6 pb-4 pr-14">
             <DialogHeader className="gap-1 text-left">
               <DialogTitle>Edit Article</DialogTitle>
-              <DialogDescription>Update article details and optional cover image.</DialogDescription>
+              <DialogDescription>
+                Update article details and optional cover image.
+              </DialogDescription>
             </DialogHeader>
           </div>
           <div className={articleDialogScrollClassName}>
@@ -531,28 +566,64 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                 initial={editing}
                 onCancel={() => setEditOpen(false)}
                 onSubmit={async (values, file) => {
-                  const formData = new FormData()
-                  formData.append("title", values.title)
-                  formData.append("excerpt", values.excerpt ?? "")
-                  formData.append("content", values.content)
-                  formData.append("category", values.category ?? "")
-                  formData.append("author", values.author ?? "")
-                  formData.append("is_published", values.is_published ? "true" : "false")
-                  if (file) formData.append("image", file)
+                  const formData = new FormData();
+                  formData.append("title", values.title);
+                  formData.append("excerpt", values.excerpt ?? "");
+                  formData.append("content", values.content);
+                  formData.append("category", values.category ?? "");
+                  formData.append("author", values.author ?? "");
+                  formData.append(
+                    "is_published",
+                    values.is_published ? "true" : "false",
+                  );
+                  if (file) formData.append("image", file);
 
-                  const res = await updateArticle(editing.id, formData)
+                  const res = await updateArticle(editing.id, formData);
                   if (!res.ok) {
-                    toast.error(res.message)
-                    return
+                    toast.error(res.message);
+                    return;
                   }
-                  toast.success("Article updated.")
-                  setEditOpen(false)
+                  toast.success("Article updated.");
+                  setEditOpen(false);
                 }}
               />
             ) : null}
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Article?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete
+              {deleting?.title
+                ? ` article \"${deleting.title}\"`
+                : " this article"}
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!deleting) return;
+                const res = await deleteArticle(deleting.id);
+                if (!res.ok) {
+                  toast.error(res.message);
+                  return;
+                }
+                toast.success("Article deleted.");
+                setDeleting(null);
+                router.refresh();
+              }}
+            >
+              Yes, delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-  )
+  );
 }

@@ -1,14 +1,24 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useRouter } from "next/navigation"
-import { useTransition } from "react"
-import { z } from "zod"
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { z } from "zod";
 
-import { toast } from "sonner"
-import { Eye, Plus, Pencil, Trash2 } from "lucide-react"
+import { toast } from "sonner";
+import { Eye, Plus, Pencil, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -16,50 +26,50 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { DataTable, type DataTableColumn } from "@/components/data-table"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { DataTable, type DataTableColumn } from "@/components/data-table";
 
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-import { createBulletin, deleteBulletin, updateBulletin } from "./_actions"
+import { createBulletin, deleteBulletin, updateBulletin } from "./_actions";
 
 /** Wide dialogs so long bulletin text is readable (matches full content width). */
 const bulletinDialogClassName =
-  "flex max-h-[90vh] w-[min(100vw-1.5rem,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+  "flex max-h-[90vh] w-[min(100vw-1.5rem,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl";
 
-const bulletinDialogScrollClassName = "flex-1 overflow-y-auto px-6 py-4"
+const bulletinDialogScrollClassName = "flex-1 overflow-y-auto px-6 py-4";
 
 const bulletinSchema = z.object({
   bulletin_number: z.string().optional(),
   title: z.string().min(1, "Title is required."),
   content: z.string().min(1, "Content is required."),
   published_date: z.string().optional(),
-})
+});
 
 type BulletinRow = {
-  id: string
-  bulletin_number: string | null
-  title: string | null
-  content: string | null
-  published_date: string | null
-}
+  id: string;
+  bulletin_number: string | null;
+  title: string | null;
+  content: string | null;
+  published_date: string | null;
+};
 
-type BulletinFormValues = z.infer<typeof bulletinSchema>
+type BulletinFormValues = z.infer<typeof bulletinSchema>;
 
 function BulletinForm({
   initial,
   onCancel,
   onSubmit,
 }: {
-  initial?: Partial<BulletinRow>
-  onCancel: () => void
-  onSubmit: (values: BulletinFormValues) => Promise<void>
+  initial?: Partial<BulletinRow>;
+  onCancel: () => void;
+  onSubmit: (values: BulletinFormValues) => Promise<void>;
 }) {
-  const router = useRouter()
+  const router = useRouter();
   const form = useForm<BulletinFormValues>({
     resolver: zodResolver(bulletinSchema),
     defaultValues: {
@@ -69,19 +79,22 @@ function BulletinForm({
       published_date: initial?.published_date ?? "",
     },
     mode: "onChange",
-  })
+  });
 
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useTransition();
 
   async function handleSubmit(values: BulletinFormValues) {
     startTransition(async () => {
-      await onSubmit(values)
-      router.refresh()
-    })
+      await onSubmit(values);
+      router.refresh();
+    });
   }
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+    <form
+      onSubmit={form.handleSubmit(handleSubmit)}
+      className="flex flex-col gap-4"
+    >
       <div className="space-y-2">
         <Label htmlFor="bulletin_number">Bulletin number</Label>
         <Input
@@ -99,7 +112,9 @@ function BulletinForm({
           {...form.register("title")}
         />
         {form.formState.errors.title ? (
-          <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>
+          <p className="text-sm text-destructive">
+            {form.formState.errors.title.message}
+          </p>
         ) : null}
       </div>
 
@@ -112,7 +127,9 @@ function BulletinForm({
           {...form.register("content")}
         />
         {form.formState.errors.content ? (
-          <p className="text-sm text-destructive">{form.formState.errors.content.message}</p>
+          <p className="text-sm text-destructive">
+            {form.formState.errors.content.message}
+          </p>
         ) : null}
       </div>
 
@@ -134,109 +151,113 @@ function BulletinForm({
         </Button>
       </DialogFooter>
     </form>
-  )
+  );
 }
 
 export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
-  const router = useRouter()
-  const [createOpen, setCreateOpen] = React.useState(false)
-  const [editOpen, setEditOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<BulletinRow | null>(null)
-  const [viewing, setViewing] = React.useState<BulletinRow | null>(null)
+  const router = useRouter();
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<BulletinRow | null>(null);
+  const [viewing, setViewing] = React.useState<BulletinRow | null>(null);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState<BulletinRow | null>(null);
 
-  const columns = React.useMemo<DataTableColumn<BulletinRow>[]>(() => [
-    {
-      key: "bulletin_number",
-      header: "#",
-      columnClassName: "w-10 text-center align-middle",
-      render: (_row, index) => (
-        <span className="font-medium tabular-nums text-xs text-muted-foreground">{index + 1}</span>
-      ),
-    },
-    {
-      key: "title",
-      header: "Title",
-      sortable: true,
-      sortValue: (r) => r.title ?? "",
-      columnClassName: "min-w-[11rem] max-w-[16rem] align-top",
-      render: (row) => (
-        <span className="line-clamp-2 font-medium text-sm leading-snug">{row.title}</span>
-      ),
-    },
-    {
-      key: "content",
-      header: "Preview",
-      columnClassName: "min-w-0 align-top whitespace-normal",
-      render: (row) => (
-        <div className="wrap-break-word text-xs leading-relaxed text-muted-foreground line-clamp-2">
-          {(row.content ?? "").slice(0, 180)}
-          {(row.content ?? "").length > 180 ? "…" : ""}
-        </div>
-      ),
-    },
-    {
-      key: "published_date",
-      header: "Date",
-      sortable: true,
-      sortValue: (r) => r.published_date ?? "",
-      columnClassName: "w-[7.5rem] whitespace-nowrap align-top",
-      render: (row) => (
-        <span className="text-xs text-muted-foreground">
-          {row.published_date ?? "—"}
-        </span>
-      ),
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      columnClassName: "w-[8.5rem] text-right align-middle",
-      render: (row) => (
-        <div className="flex items-center justify-end gap-0.5">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-8"
-            title="View"
-            onClick={() => setViewing(row)}
-          >
-            <Eye className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-8"
-            title="Edit"
-            onClick={() => {
-              setEditing(row)
-              setEditOpen(true)
-            }}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-8 text-destructive hover:text-destructive"
-            title="Delete"
-            onClick={async () => {
-              const res = await deleteBulletin(row.id)
-              if (!res.ok) {
-                toast.error(res.message)
-                return
-              }
-              toast.success("Bulletin deleted.")
-              router.refresh()
-            }}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      ),
-    },
-  ], [router])
+  const columns = React.useMemo<DataTableColumn<BulletinRow>[]>(
+    () => [
+      {
+        key: "bulletin_number",
+        header: "#",
+        columnClassName: "w-10 text-center align-middle",
+        render: (_row, index) => (
+          <span className="font-medium tabular-nums text-xs text-muted-foreground">
+            {index + 1}
+          </span>
+        ),
+      },
+      {
+        key: "title",
+        header: "Title",
+        sortable: true,
+        sortValue: (r) => r.title ?? "",
+        columnClassName: "min-w-[11rem] max-w-[16rem] align-top",
+        render: (row) => (
+          <span className="line-clamp-2 font-medium text-sm leading-snug">
+            {row.title}
+          </span>
+        ),
+      },
+      {
+        key: "content",
+        header: "Preview",
+        columnClassName: "min-w-0 align-top whitespace-normal",
+        render: (row) => (
+          <div className="wrap-break-word text-xs leading-relaxed text-muted-foreground line-clamp-2">
+            {(row.content ?? "").slice(0, 180)}
+            {(row.content ?? "").length > 180 ? "…" : ""}
+          </div>
+        ),
+      },
+      {
+        key: "published_date",
+        header: "Date",
+        sortable: true,
+        sortValue: (r) => r.published_date ?? "",
+        columnClassName: "w-[7.5rem] whitespace-nowrap align-top",
+        render: (row) => (
+          <span className="text-xs text-muted-foreground">
+            {row.published_date ?? "—"}
+          </span>
+        ),
+      },
+      {
+        key: "actions",
+        header: "Actions",
+        columnClassName: "w-[8.5rem] text-right align-middle",
+        render: (row) => (
+          <div className="flex items-center justify-end gap-0.5">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              title="View"
+              onClick={() => setViewing(row)}
+            >
+              <Eye className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              title="Edit"
+              onClick={() => {
+                setEditing(row);
+                setEditOpen(true);
+              }}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-8 text-destructive hover:text-destructive"
+              title="Delete"
+              onClick={() => {
+                setDeleting(row);
+                setDeleteOpen(true);
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [router],
+  );
 
   return (
     <div className="w-full max-w-full space-y-6">
@@ -263,19 +284,25 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
               <BulletinForm
                 onCancel={() => setCreateOpen(false)}
                 onSubmit={async (values) => {
-                  const formData = new FormData()
-                  formData.append("bulletin_number", values.bulletin_number ?? "")
-                  formData.append("title", values.title)
-                  formData.append("content", values.content)
-                  formData.append("published_date", values.published_date ?? "")
+                  const formData = new FormData();
+                  formData.append(
+                    "bulletin_number",
+                    values.bulletin_number ?? "",
+                  );
+                  formData.append("title", values.title);
+                  formData.append("content", values.content);
+                  formData.append(
+                    "published_date",
+                    values.published_date ?? "",
+                  );
 
-                  const res = await createBulletin(formData)
+                  const res = await createBulletin(formData);
                   if (!res.ok) {
-                    toast.error(res.message)
-                    return
+                    toast.error(res.message);
+                    return;
                   }
-                  toast.success("Bulletin created.")
-                  setCreateOpen(false)
+                  toast.success("Bulletin created.");
+                  setCreateOpen(false);
                 }}
               />
             </div>
@@ -286,7 +313,9 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
       <div className="w-full overflow-hidden rounded-xl border border-border/50 bg-card/30">
         {bulletins.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            No bulletins yet. Use <span className="font-medium text-foreground">New Bulletin</span> to add one.
+            No bulletins yet. Use{" "}
+            <span className="font-medium text-foreground">New Bulletin</span> to
+            add one.
           </div>
         ) : (
           <div className="w-full overflow-x-auto p-3 sm:p-4">
@@ -299,7 +328,10 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
         )}
       </div>
 
-      <Dialog open={!!viewing} onOpenChange={(open) => !open && setViewing(null)}>
+      <Dialog
+        open={!!viewing}
+        onOpenChange={(open) => !open && setViewing(null)}
+      >
         <DialogContent className={bulletinDialogClassName} showCloseButton>
           {viewing ? (
             <>
@@ -315,13 +347,17 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
                     {viewing.bulletin_number ? (
                       <span>
                         Number:{" "}
-                        <span className="font-medium text-foreground">{viewing.bulletin_number}</span>
+                        <span className="font-medium text-foreground">
+                          {viewing.bulletin_number}
+                        </span>
                       </span>
                     ) : null}
                     {viewing.published_date ? (
                       <span>
                         Published:{" "}
-                        <span className="font-medium text-foreground">{viewing.published_date}</span>
+                        <span className="font-medium text-foreground">
+                          {viewing.published_date}
+                        </span>
                       </span>
                     ) : (
                       <span>No date set</span>
@@ -352,11 +388,11 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
                   type="button"
                   className="min-w-22"
                   onClick={() => {
-                    const row = viewing
-                    setViewing(null)
+                    const row = viewing;
+                    setViewing(null);
                     if (row) {
-                      setEditing(row)
-                      setEditOpen(true)
+                      setEditing(row);
+                      setEditOpen(true);
                     }
                   }}
                 >
@@ -382,25 +418,64 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
                 initial={editing}
                 onCancel={() => setEditOpen(false)}
                 onSubmit={async (values) => {
-                  const formData = new FormData()
-                  formData.append("bulletin_number", values.bulletin_number ?? "")
-                  formData.append("title", values.title)
-                  formData.append("content", values.content)
-                  formData.append("published_date", values.published_date ?? "")
+                  const formData = new FormData();
+                  formData.append(
+                    "bulletin_number",
+                    values.bulletin_number ?? "",
+                  );
+                  formData.append("title", values.title);
+                  formData.append("content", values.content);
+                  formData.append(
+                    "published_date",
+                    values.published_date ?? "",
+                  );
 
-                  const res = await updateBulletin(editing.id, formData)
+                  const res = await updateBulletin(editing.id, formData);
                   if (!res.ok) {
-                    toast.error(res.message)
-                    return
+                    toast.error(res.message);
+                    return;
                   }
-                  toast.success("Bulletin updated.")
-                  setEditOpen(false)
+                  toast.success("Bulletin updated.");
+                  setEditOpen(false);
                 }}
               />
             ) : null}
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Bulletin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete
+              {deleting?.title
+                ? ` bulletin \"${deleting.title}\"`
+                : " this bulletin"}
+              .
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!deleting) return;
+                const res = await deleteBulletin(deleting.id);
+                if (!res.ok) {
+                  toast.error(res.message);
+                  return;
+                }
+                toast.success("Bulletin deleted.");
+                setDeleting(null);
+                router.refresh();
+              }}
+            >
+              Yes, delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-  )
+  );
 }

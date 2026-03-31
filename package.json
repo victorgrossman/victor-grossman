@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack -p 3001",
+    "dev:3000": "next dev --turbopack -p 3000",
     "build": "next build",
     "start": "next start",
+    "start:3001": "next start -p 3001",
     "lint": "eslint",
     "import:photos": "node scripts/import-photos.mjs",
     "import:articles:wp": "node scripts/import-articles-wordpress.mjs",
@@ -17,7 +19,8 @@
     "scrape:books": "node scripts/scrape-books-buecher.mjs",
     "prune:imagekit:books": "node scripts/prune-imagekit-books.mjs",
     "scrape:photos": "node scripts/import-photos-wechsler-archive.mjs",
-    "scrape:photos:wordpress": "node scripts/scrape-photos-wordpress.mjs"
+    "scrape:photos:wordpress": "node scripts/scrape-photos-wordpress.mjs",
+    "sync:memorial": "npm run scrape:books && npm run import:tributes:wechsler && npm run import:articles:wechsler && npm run scrape:photos"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
