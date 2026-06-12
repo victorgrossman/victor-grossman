@@ -1,6 +1,5 @@
-# Run these files in order in NEW Supabase SQL Editor
-# Source: https://xobxmxcmarcoekvxaqqf.supabase.co
-# Generated at: 2026-03-31T03:56:53.725Z
+# Run these files in order in the Supabase SQL Editor
+# Run migrations/0001_complete_schema.sql first
 
 # photos
 01-photos-part-01.sql

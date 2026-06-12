@@ -1,16 +1,20 @@
 "use client";
 
 import React, { useEffect } from "react";
+
+import { ArticleContent } from "./ArticleContent";
 import { Article } from "./types";
 
 interface ArticleReaderProps {
   article: Article | null;
   onClose: () => void;
+  lang: "en" | "de";
 }
 
 export const ArticleReader: React.FC<ArticleReaderProps> = ({
   article,
   onClose,
+  lang,
 }) => {
   useEffect(() => {
     if (article) {
@@ -30,7 +34,6 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
       <div className="absolute inset-0" onClick={onClose} />
 
       <div className="relative w-full h-full md:h-auto md:max-h-[90vh] max-w-4xl bg-white shadow-2xl overflow-y-auto md:rounded-2xl scroll-smooth">
-        {/* Sticky Header with Close Button */}
         <div className="sticky top-0 z-50 flex justify-end p-6 pointer-events-none">
           <button
             onClick={onClose}
@@ -52,7 +55,6 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
           </button>
         </div>
 
-        {/* Hero Image */}
         <div className="relative h-[40vh] -mt-24">
           {article.image_url ? (
             <img
@@ -70,15 +72,16 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
           <div className="absolute inset-0 bg-linear-to-t from-white via-transparent to-transparent opacity-90" />
         </div>
 
-        {/* Content */}
         <div className="px-6 md:px-12 lg:px-16 -mt-20 md:-mt-32 relative z-10 pb-20">
           <div className="mb-8 md:mb-10">
-            <div className="flex items-center gap-3 mb-6">
+            <div className="flex flex-wrap items-center gap-3 mb-6">
               <span className="inline-block px-3 py-1 border border-slate-900 rounded-full text-[10px] font-black uppercase tracking-widest bg-white">
                 {article.category}
               </span>
               <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
-                {new Date(article.created_at).toLocaleDateString()}
+                {new Date(article.created_at).toLocaleDateString(
+                  lang === "de" ? "de-DE" : "en-US",
+                )}
               </span>
             </div>
             <h1 className="text-3xl md:text-5xl font-bold font-serif italic text-slate-900 leading-tight mb-6">
@@ -87,11 +90,8 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
             <div className="h-1 w-20 bg-blue-600 rounded-full" />
           </div>
 
-          <div className="prose prose-slate prose-lg md:prose-xl max-w-none text-slate-800">
-            <div dangerouslySetInnerHTML={{ __html: article.content || "" }} />
-          </div>
+          <ArticleContent html={article.content || ""} />
 
-          {/* Footer of Article */}
           <div className="mt-16 pt-10 border-t border-slate-100 text-center">
             <p className="text-slate-400 text-xs font-black uppercase tracking-widest">
               Victor Grossman Archive

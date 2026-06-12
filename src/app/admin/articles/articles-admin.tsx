@@ -36,8 +36,16 @@ import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { compressImageFile } from "@/lib/image-compress";
+import { hasMeaningfulHtml, stripHtml } from "@/lib/html";
+import { RichTextEditor } from "@/components/admin/rich-text-editor";
+import { ArticleContent } from "@/components/victor/ArticleContent";
 
-import { createArticle, deleteArticle, updateArticle } from "./_actions";
+import {
+  createArticle,
+  deleteArticle,
+  updateArticle,
+  uploadArticleContentImage,
+} from "./_actions";
 
 const articleDialogClassName =
   "flex max-h-[90vh] w-[min(100vw-1.5rem,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl";
@@ -47,7 +55,9 @@ const articleDialogScrollClassName = "flex-1 overflow-y-auto px-6 py-4";
 const articleSchema = z.object({
   title: z.string().min(1, "Title is required."),
   excerpt: z.string().optional(),
-  content: z.string().min(1, "Content is required."),
+  content: z
+    .string()
+    .refine((v) => hasMeaningfulHtml(v), "Content is required."),
   category: z.string().optional(),
   author: z.string().optional(),
   is_published: z.boolean(),
@@ -173,12 +183,28 @@ function ArticleForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="article-content">Content</Label>
-        <Textarea
-          id="article-content"
-          rows={10}
-          placeholder="Full article text…"
-          {...form.register("content")}
+        <Label>Content</Label>
+        <Controller
+          control={form.control}
+          name="content"
+          render={({ field }) => (
+            <RichTextEditor
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Write the full article…"
+              disabled={pending}
+              onUploadImage={async (file) => {
+                const formData = new FormData();
+                formData.append("file", file);
+                const res = await uploadArticleContentImage(formData);
+                if (!res.ok) {
+                  toast.error(res.message ?? "Image upload failed.");
+                  return null;
+                }
+                return res.url;
+              }}
+            />
+          )}
         />
         {form.formState.errors.content ? (
           <p className="text-sm text-destructive">
@@ -273,8 +299,8 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
         columnClassName: "min-w-0 align-top whitespace-normal",
         render: (row) => (
           <div className="wrap-break-word text-xs leading-relaxed text-muted-foreground line-clamp-2">
-            {(row.content ?? "").slice(0, 180)}
-            {(row.content ?? "").length > 180 ? "…" : ""}
+            {stripHtml(row.content ?? "").slice(0, 180)}
+            {stripHtml(row.content ?? "").length > 180 ? "…" : ""}
           </div>
         ),
       },
@@ -510,9 +536,10 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                     {viewing.excerpt}
                   </p>
                 ) : null}
-                <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                  {viewing.content ?? "—"}
-                </div>
+                <ArticleContent
+                  html={viewing.content ?? ""}
+                  className="rounded-lg border border-border/60 bg-muted/20 p-4 prose-sm"
+                />
               </div>
               <div
                 role="group"

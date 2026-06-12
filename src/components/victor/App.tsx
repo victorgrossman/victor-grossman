@@ -7,6 +7,9 @@ import { TributeModal } from "./TributeModal";
 import { MemoryDetailModal } from "./MemoryDetailModal";
 import { ScrollRevealParagraph } from "./ScrollRevealParagraph";
 import { ArticleReader } from "./ArticleReader";
+import { ArticleCard } from "./ArticleCard";
+import { BulletinReader } from "./BulletinReader";
+import { BulletinCard } from "./BulletinCard";
 import {
   Section,
   Memory,
@@ -14,21 +17,46 @@ import {
   Article,
   Book,
   Bulletin,
+  Interview,
 } from "./types";
+import { InterviewCard } from "./InterviewCard";
 import { PlusIcon, CameraIcon, BookIcon } from "./constants";
 import { supabase, isSupabaseConfigured } from "@/lib/victor/supabase";
+
+const BULLETIN_ARCHIVE_START_YEAR = 2017;
+const BULLETIN_ARCHIVE_END_YEAR = 2025;
+const BULLETIN_ARCHIVE_YEARS = Array.from(
+  { length: BULLETIN_ARCHIVE_END_YEAR - BULLETIN_ARCHIVE_START_YEAR + 1 },
+  (_, i) => BULLETIN_ARCHIVE_START_YEAR + i,
+);
+
+function getBulletinYear(bulletin: Bulletin): number {
+  const date = bulletin.published_date || bulletin.created_at;
+  return new Date(date).getFullYear();
+}
+
+function isInBerlinArchive(bulletin: Bulletin): boolean {
+  const year = getBulletinYear(bulletin);
+  return year >= BULLETIN_ARCHIVE_START_YEAR && year <= BULLETIN_ARCHIVE_END_YEAR;
+}
 
 const App: React.FC = () => {
   const [lang, setLang] = useState<"en" | "de">("de");
   const [currentSection, setCurrentSection] = useState<Section>(Section.Home);
-  const [view, setView] = useState<"main" | "gallery" | "articles">("main");
+  const [view, setView] = useState<"main" | "gallery" | "articles" | "bulletins">(
+    "main",
+  );
   const [memories, setMemories] = useState<Memory[]>([]);
   const [archivePhotos, setArchivePhotos] = useState<ArchivePhoto[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [booksPage, setBooksPage] = useState(0);
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
   const [bulletinsPage, setBulletinsPage] = useState(0);
+  const [selectedBulletinYear, setSelectedBulletinYear] = useState(
+    BULLETIN_ARCHIVE_END_YEAR,
+  );
   const [pendingMainSection, setPendingMainSection] = useState<Section | null>(
     null,
   );
@@ -85,6 +113,7 @@ const App: React.FC = () => {
     fetchArticles();
     fetchBooks();
     fetchBulletins();
+    fetchInterviews();
   }, [lang]);
 
   useEffect(() => {
@@ -94,6 +123,10 @@ const App: React.FC = () => {
   useEffect(() => {
     setBulletinsPage(0);
   }, [bulletins.length]);
+
+  useEffect(() => {
+    setBulletinsPage(0);
+  }, [selectedBulletinYear]);
 
   useEffect(() => {
     audioRef.current = new Audio();
@@ -345,6 +378,47 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchInterviews = async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data, error } = await supabase
+        .from("interviews")
+        .select(
+          "id,title,person,role,content,image_url,media_type,media_url,location_meta,sort_order,created_at",
+        )
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        if ((error.message || "").toLowerCase().includes("media")) {
+          setInterviews([]);
+          return;
+        }
+        throw error;
+      }
+
+      const rows = (data ?? [])
+        .filter((row) => row.media_url)
+        .map((row) => ({
+          id: row.id,
+          title: row.title,
+          person: row.person,
+          role: row.role,
+          content: row.content,
+          image_url: row.image_url,
+          media_type: row.media_type === "video" ? "video" : "audio",
+          media_url: row.media_url as string,
+          location_meta: row.location_meta,
+          sort_order: row.sort_order ?? 0,
+          created_at: row.created_at,
+        })) as Interview[];
+
+      setInterviews(rows);
+    } catch (err) {
+      console.error("Error fetching interviews:", err);
+    }
+  };
+
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -535,6 +609,13 @@ const App: React.FC = () => {
       return;
     }
 
+    if (section === Section.Blogs) {
+      setPendingMainSection(null);
+      setView("bulletins");
+      window.scrollTo(0, 0);
+      return;
+    }
+
     if (view !== "main") {
       setPendingMainSection(section);
       setView("main");
@@ -574,23 +655,49 @@ const App: React.FC = () => {
     (currentBooksPage + 1) * booksPerPage,
   );
 
+  const archiveBulletins = bulletins.filter(isInBerlinArchive);
+  const bulletinsByYear = BULLETIN_ARCHIVE_YEARS.reduce<
+    Record<number, Bulletin[]>
+  >((acc, year) => {
+    acc[year] = archiveBulletins
+      .filter((b) => getBulletinYear(b) === year)
+      .sort(
+        (a, b) =>
+          new Date(b.published_date || b.created_at).getTime() -
+          new Date(a.published_date || a.created_at).getTime(),
+      );
+    return acc;
+  }, {});
+  const bulletinCountByYear = BULLETIN_ARCHIVE_YEARS.reduce<
+    Record<number, number>
+  >((acc, year) => {
+    acc[year] = bulletinsByYear[year]?.length ?? 0;
+    return acc;
+  }, {});
+  const visibleArchiveBulletins =
+    bulletinsByYear[selectedBulletinYear] ?? [];
+
   const bulletinsPerPage = 4;
+  const previewYearBulletins = visibleArchiveBulletins;
   const totalBulletinPages = Math.max(
     1,
-    Math.ceil(bulletins.length / bulletinsPerPage),
+    Math.ceil(previewYearBulletins.length / bulletinsPerPage),
   );
   const currentBulletinsPage = Math.min(bulletinsPage, totalBulletinPages - 1);
-  const visibleBulletins = bulletins.slice(
+  const visibleBulletins = previewYearBulletins.slice(
     currentBulletinsPage * bulletinsPerPage,
     (currentBulletinsPage + 1) * bulletinsPerPage,
   );
+
+  const bulletinYearSelectClassName =
+    "text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-700 py-3 pl-4 md:pl-5 pr-9 border border-slate-200 bg-white rounded-full shadow-sm hover:border-blue-300 focus:outline-none focus:border-blue-400 cursor-pointer appearance-none bg-[length:12px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2364748b%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')]";
 
   const t = {
     en: {
       bio1_title: "The Beginning",
       bio1_range: "1928 — 1951",
       bio1_text:
-        "Born Stephen Wechsler in New York City, Victor's journey began in the vibrant political atmosphere of a Jewish-American family. By the time he reached Harvard University, his world-view had sharpened into a commitment to social justice that would define every subsequent year of his long life.",
+        "Born Stephen Wechsler in New York City, Victor's journey began in the vibrant political atmosphere of a Jewish-American family. By the time he reached Harvard University, his worldview had sharpened into a commitment to social justice that would define every subsequent year of his long life.",
       bio2_title: "The Danube Leap",
       bio2_text:
         "Facing the prospect of a military tribunal for his past affiliations, Stephen made his move. On August 12, 1952, he swam across the Danube near Linz, seeking asylum in the Soviet Zone. It was a swim away from one life, and toward another that would last over seven decades.",
@@ -606,8 +713,22 @@ const App: React.FC = () => {
       books_title: "Books & Publications",
       articles_title: "Selected Articles",
       bulletins_title: "Berlin Bulletins",
+      bulletins_archive: "Berlin Bulletin Archive",
+      view_all_bulletins: "View full archive",
+      read_full_bulletin: "Read full bulletin",
       interviews_title: "Interviews & Discussions",
-      films_title: "Documentaries & Film",
+      interviews_empty:
+        "Interviews will appear here once they are added in the admin.",
+      interview_play: "Play Interview",
+      interview_pause: "Pause",
+      video_unsupported: "Your browser does not support video playback.",
+      films_title: "Documentaries & Films",
+      films_empty: "Films coming soon.",
+      films_read_more: "Open to read the full entry.",
+      photo_subtitle: "Historical records and personal snapshots",
+      photo_full_collection: "Full Collection",
+      memories_sub: "Voices from those whose lives he touched",
+      articles_empty: "Articles coming soon.",
       footer_tag:
         "Dedicated to preserving the narrative of a life that crossed borders.",
       back_home: "Back to Home",
@@ -637,15 +758,29 @@ const App: React.FC = () => {
       books_title: "Bücher & Publikationen",
       articles_title: "Ausgewählte Artikel",
       bulletins_title: "Berlin Bulletins",
+      bulletins_archive: "Berlin-Bulletin-Archiv",
+      view_all_bulletins: "Vollständiges Archiv",
+      read_full_bulletin: "Ganzen Bericht lesen",
       interviews_title: "Interviews & Gespräche",
-      films_title: "Dokumentationen & Film",
+      interviews_empty:
+        "Interviews erscheinen hier, sobald sie im Admin-Bereich hinzugefügt wurden.",
+      interview_play: "Interview abspielen",
+      interview_pause: "Pause",
+      video_unsupported: "Ihr Browser unterstützt die Videowiedergabe nicht.",
+      films_title: "Dokumentationen & Filme",
+      films_empty: "Filme folgen in Kürze.",
+      films_read_more: "Zum vollständigen Eintrag.",
+      photo_subtitle: "Historische Aufzeichnungen und persönliche Aufnahmen",
+      photo_full_collection: "Vollständige Sammlung",
+      memories_sub: "Stimmen derer, deren Leben er berührt hat",
+      articles_empty: "Artikel folgen in Kürze.",
       footer_tag:
         "Gewidmet der Bewahrung der Erzählung eines Lebens, das Grenzen überschritt.",
       back_home: "Zurück zum Start",
       read_more: "Vollständigen Nachruf lesen",
       read_less: "Weniger lesen",
       view_all_articles: "Alle Artikel ansehen",
-      articles_archive: "Artikel Archiv",
+      articles_archive: "Artikelarchiv",
       articles_desc: "Eine Sammlung von Schriften, Berichten und Gedanken.",
     },
   }[lang];
@@ -715,44 +850,12 @@ const App: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {articles.map((article) => (
-              <div
+              <ArticleCard
                 key={article.id}
+                article={article}
+                lang={lang}
                 onClick={() => setSelectedArticle(article)}
-                className="group cursor-pointer flex flex-col gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-blue-200 transition-all duration-300"
-              >
-                <div className="aspect-[4/3] bg-slate-100 rounded-xl overflow-hidden relative">
-                  {article.image_url ? (
-                    <img
-                      src={article.image_url}
-                      alt={article.title}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-300 font-serif italic text-4xl">
-                      VG
-                    </div>
-                  )}
-                  <div className="absolute top-4 left-4">
-                    <span className="bg-white/95 backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full shadow-sm">
-                      {article.category}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-[1px] bg-slate-300" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      {new Date(article.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <h3 className="text-xl md:text-2xl font-bold font-serif italic mb-3 leading-tight group-hover:text-blue-600 transition-colors">
-                    {article.title}
-                  </h3>
-                  <p className="text-slate-500 text-sm line-clamp-3 leading-relaxed font-medium">
-                    {article.excerpt || "Read full article..."}
-                  </p>
-                </div>
-              </div>
+              />
             ))}
             {articles.length === 0 && (
               <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
@@ -766,6 +869,96 @@ const App: React.FC = () => {
         <ArticleReader
           article={selectedArticle}
           onClose={() => setSelectedArticle(null)}
+          lang={lang}
+        />
+      </div>
+    );
+  }
+
+  // Dedicated Berlin Bulletins archive (2017–2025)
+  if (view === "bulletins") {
+    return (
+      <div className="min-h-screen bg-white text-slate-900 flex flex-col">
+        <Navbar
+          currentSection={currentSection}
+          onNavigate={handleNavigate}
+          lang={lang}
+          setLang={setLang}
+        />
+        <main className="flex-grow pt-32 px-4 md:px-6 pb-24 max-w-7xl mx-auto w-full">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6 border-b border-slate-100 pb-10">
+            <div>
+              <div className="flex items-center gap-3 mb-4 text-blue-600">
+                <BookIcon />
+                <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em]">
+                  Victor Grossman
+                </span>
+              </div>
+              <h2 className="text-3xl md:text-6xl font-serif italic font-bold tracking-tight">
+                {t.bulletins_archive}
+              </h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <select
+                value={selectedBulletinYear}
+                onChange={(e) =>
+                  setSelectedBulletinYear(Number(e.target.value))
+                }
+                className={bulletinYearSelectClassName}
+                aria-label={
+                  lang === "en" ? "Filter bulletins by year" : "Berichte nach Jahr filtern"
+                }
+              >
+                {[...BULLETIN_ARCHIVE_YEARS].reverse().map((year) => {
+                  const count = bulletinCountByYear[year] ?? 0;
+                  return (
+                    <option key={year} value={year} disabled={count === 0}>
+                      {year} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+              <button
+                onClick={() => handleNavigate(Section.Home)}
+                className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors py-3 px-6 md:px-8 border border-slate-100 rounded-full whitespace-nowrap"
+              >
+                {t.back_home}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            {visibleArchiveBulletins.map((bulletin) => (
+              <BulletinCard
+                key={bulletin.id}
+                bulletin={bulletin}
+                lang={lang}
+                readLabel={t.read_full_bulletin}
+                compact
+                onClick={() => setSelectedBulletin(bulletin)}
+              />
+            ))}
+            {visibleArchiveBulletins.length === 0 && (
+              <div className="col-span-full py-20 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p className="font-serif italic text-xl">
+                  {lang === "en"
+                    ? `No bulletins for ${selectedBulletinYear} yet.`
+                    : `Noch keine Berichte für ${selectedBulletinYear}.`}
+                </p>
+              </div>
+            )}
+          </div>
+        </main>
+
+        <BulletinReader
+          bulletin={selectedBulletin}
+          onClose={() => setSelectedBulletin(null)}
+          lang={lang}
+        />
+        <ArticleReader
+          article={selectedArticle}
+          onClose={() => setSelectedArticle(null)}
+          lang={lang}
         />
       </div>
     );
@@ -841,11 +1034,6 @@ const App: React.FC = () => {
       </div>
     );
   }
-
-  const interview1Url =
-    "https://prinomaaszkdknrluweo.supabase.co/storage/v1/object/public/victor%20grossman/SF-18-05-14-Victor%20Grossman-si.mp3";
-  const interview2Url =
-    "https://prinomaaszkdknrluweo.supabase.co/storage/v1/object/public/victor%20grossman/Victor%20Grossman%20Begegnungen%20mit%20Pete%20Seeger%20Berliner%20Rundfunk%2006.%20Mai%201979.mp3";
 
   return (
     <div className="min-h-screen flex flex-col bg-white text-slate-800 selection:bg-blue-100 selection:text-blue-900">
@@ -1414,116 +1602,116 @@ const App: React.FC = () => {
           className="py-20 md:py-32 bg-slate-50 border-y border-slate-100"
         >
           <div className="max-w-7xl mx-auto px-6">
-            <div className="flex items-center justify-between gap-4 mb-12 md:mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold font-serif italic tracking-tight text-slate-900">
-                {t.bulletins_title}
-              </h2>
-              {bulletins.length > bulletinsPerPage && (
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBulletinsPage((prev) => Math.max(0, prev - 1))
-                    }
-                    disabled={currentBulletinsPage === 0}
-                    className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    aria-label="Previous bulletins"
-                  >
-                    <svg
-                      className="w-5 h-5 mx-auto"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 md:mb-16 gap-6">
+              <div>
+                <h2 className="text-3xl md:text-5xl font-bold font-serif italic tracking-tight text-slate-900">
+                  {t.bulletins_title}
+                </h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={selectedBulletinYear}
+                  onChange={(e) =>
+                    setSelectedBulletinYear(Number(e.target.value))
+                  }
+                  className={bulletinYearSelectClassName}
+                  aria-label={
+                    lang === "en"
+                      ? "Filter bulletins by year"
+                      : "Berichte nach Jahr filtern"
+                  }
+                >
+                  {[...BULLETIN_ARCHIVE_YEARS].reverse().map((year) => {
+                    const count = bulletinCountByYear[year] ?? 0;
+                    return (
+                      <option key={year} value={year} disabled={count === 0}>
+                        {year} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+                {previewYearBulletins.length > bulletinsPerPage && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBulletinsPage((prev) => Math.max(0, prev - 1))
+                      }
+                      disabled={currentBulletinsPage === 0}
+                      className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Previous bulletins"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-5 h-5 mx-auto"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 19l-7-7 7-7"
+                        />
+                      </svg>
+                    </button>
 
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    {currentBulletinsPage + 1}/{totalBulletinPages}
-                  </span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                      {currentBulletinsPage + 1}/{totalBulletinPages}
+                    </span>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBulletinsPage((prev) =>
-                        Math.min(totalBulletinPages - 1, prev + 1),
-                      )
-                    }
-                    disabled={currentBulletinsPage >= totalBulletinPages - 1}
-                    className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    aria-label="Next bulletins"
-                  >
-                    <svg
-                      className="w-5 h-5 mx-auto"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBulletinsPage((prev) =>
+                          Math.min(totalBulletinPages - 1, prev + 1),
+                        )
+                      }
+                      disabled={currentBulletinsPage >= totalBulletinPages - 1}
+                      className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Next bulletins"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              )}
+                      <svg
+                        className="w-5 h-5 mx-auto"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => handleNavigate(Section.Blogs)}
+                  className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors py-3 px-6 md:px-8 border border-slate-200 bg-white rounded-full whitespace-nowrap shadow-sm hover:shadow-md"
+                >
+                  {t.view_all_bulletins}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
               {visibleBulletins.map((bulletin) => (
-                <article
+                <BulletinCard
                   key={bulletin.id}
+                  bulletin={bulletin}
+                  lang={lang}
+                  readLabel={t.read_full_bulletin}
                   onClick={() => setSelectedBulletin(bulletin)}
-                  className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm hover:shadow-lg transition-all cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                      {bulletin.bulletin_number || "Berlin Bulletin"}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      {new Date(
-                        bulletin.published_date || bulletin.created_at,
-                      ).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <h3 className="text-2xl font-bold font-serif italic text-slate-900 mb-3 leading-tight">
-                    {bulletin.title}
-                  </h3>
-                  <p className="text-slate-600 leading-relaxed line-clamp-5">
-                    {bulletin.content}
-                  </p>
-                  <div className="mt-5 flex items-center gap-2 text-blue-600">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                      Read full bulletin
-                    </span>
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </article>
+                />
               ))}
-              {bulletins.length === 0 && (
+              {previewYearBulletins.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
                   <p className="font-serif italic text-xl">
-                    Bulletins coming soon...
+                    {lang === "en"
+                      ? `No bulletins for ${selectedBulletinYear} yet.`
+                      : `Noch keine Berichte für ${selectedBulletinYear}.`}
                   </p>
                 </div>
               )}
@@ -1565,16 +1753,14 @@ const App: React.FC = () => {
                       {film.title}
                     </h3>
                     <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed">
-                      {film.excerpt || "Open to read the full entry."}
+                      {film.excerpt || t.films_read_more}
                     </p>
                   </div>
                 </article>
               ))}
               {filmArticles.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="font-serif italic text-xl">
-                    Films coming soon...
-                  </p>
+                  <p className="font-serif italic text-xl">{t.films_empty}</p>
                 </div>
               )}
             </div>
@@ -1604,50 +1790,16 @@ const App: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {articles.slice(0, 3).map((article) => (
-                <div
+                <ArticleCard
                   key={article.id}
+                  article={article}
+                  lang={lang}
                   onClick={() => setSelectedArticle(article)}
-                  className="group cursor-pointer flex flex-col gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-blue-200 transition-all duration-300"
-                >
-                  <div className="aspect-[4/3] bg-slate-100 rounded-xl overflow-hidden relative">
-                    {article.image_url ? (
-                      <img
-                        src={article.image_url}
-                        alt={article.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-300 font-serif italic text-4xl">
-                        VG
-                      </div>
-                    )}
-                    <div className="absolute top-4 left-4">
-                      <span className="bg-white/95 backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full shadow-sm">
-                        {article.category}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-[1px] bg-slate-300" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        {new Date(article.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <h3 className="text-xl md:text-2xl font-bold font-serif italic mb-3 leading-tight group-hover:text-blue-600 transition-colors">
-                      {article.title}
-                    </h3>
-                    <p className="text-slate-500 text-sm line-clamp-3 leading-relaxed font-medium">
-                      {article.excerpt || "Read full article..."}
-                    </p>
-                  </div>
-                </div>
+                />
               ))}
               {articles.length === 0 && (
                 <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-                  <p className="font-serif italic text-xl">
-                    Articles coming soon...
-                  </p>
+                  <p className="font-serif italic text-xl">{t.articles_empty}</p>
                 </div>
               )}
             </div>
@@ -1666,14 +1818,14 @@ const App: React.FC = () => {
                   {t.photo_archive}
                 </h2>
                 <p className="text-slate-400 font-medium tracking-wide">
-                  Historical records and personal snapshots
+                  {t.photo_subtitle}
                 </p>
               </div>
               <button
                 onClick={() => setView("gallery")}
                 className="text-[10px] md:text-[12px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-500 transition-all flex items-center gap-3"
               >
-                Full Collection
+                {t.photo_full_collection}
                 <svg
                   className="w-5 h-5 md:w-6 md:h-6"
                   fill="none"
@@ -1716,9 +1868,7 @@ const App: React.FC = () => {
               <h2 className="text-4xl md:text-7xl font-bold text-slate-900 tracking-tighter font-serif italic">
                 {t.memories_title}
               </h2>
-              <p className="text-slate-400 font-medium text-lg">
-                Voices from those whose lives he touched
-              </p>
+              <p className="text-slate-400 font-medium text-lg">{t.memories_sub}</p>
             </div>
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20">
@@ -1753,134 +1903,30 @@ const App: React.FC = () => {
             <h2 className="text-3xl md:text-6xl font-bold font-serif italic tracking-tight text-slate-900 mb-12 md:mb-16">
               {t.interviews_title}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
-              {/* Interview Card 1 */}
-              <div className="bg-slate-50 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-slate-200 shadow-sm flex flex-col items-stretch w-full overflow-hidden">
-                <p className="text-blue-600 font-black text-[10px] md:text-[12px] uppercase tracking-[0.4em] mb-4">
-                  Democracy Now!
-                </p>
-                <h4 className="text-2xl md:text-3xl font-bold mb-6 font-serif italic">
-                  The Man Who Swam to the East
-                </h4>
-                <p className="text-slate-600 text-base md:text-lg mb-8 leading-relaxed">
-                  A feature interview on the legacy of the Cold War and his
-                  pivotal 1952 decision to defect across the Danube.
-                </p>
-
-                {playingUrl === interview1Url && (
-                  <div className="w-full space-y-4 mb-8">
-                    <div className="flex justify-between items-center text-[10px] font-black text-slate-400 font-mono tracking-widest mb-1">
-                      <span>{formatTime(audioCurrentTime)}</span>
-                      <span>{formatTime(audioDuration)}</span>
-                    </div>
-                    <div className="relative h-6 flex items-center">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={audioProgress}
-                        onChange={handleSeek}
-                        className="w-full appearance-none bg-transparent cursor-pointer z-10"
-                      />
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[4px] bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{ width: `${audioProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex">
-                  <button
-                    onClick={() => handleToggleAudio(interview1Url)}
-                    className={`text-[10px] md:text-[12px] font-black uppercase tracking-widest px-8 md:px-10 py-3 md:py-4 rounded-full transition-all shadow-lg active:scale-95 flex items-center gap-3 ${
-                      playingUrl === interview1Url
-                        ? "bg-blue-600 text-white"
-                        : "border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white"
-                    }`}
-                  >
-                    {playingUrl === interview1Url ? "Pause" : "Play Interview"}
-                  </button>
-                </div>
+            {interviews.length === 0 ? (
+              <p className="text-slate-500 text-lg font-serif italic">
+                {t.interviews_empty}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                {interviews.map((interview) => (
+                  <InterviewCard
+                    key={interview.id}
+                    interview={interview}
+                    playingUrl={playingUrl}
+                    audioProgress={audioProgress}
+                    audioCurrentTime={audioCurrentTime}
+                    audioDuration={audioDuration}
+                    onToggleAudio={handleToggleAudio}
+                    onSeek={handleSeek}
+                    formatTime={formatTime}
+                    playLabel={t.interview_play}
+                    pauseLabel={t.interview_pause}
+                    videoUnsupportedLabel={t.video_unsupported}
+                  />
+                ))}
               </div>
-
-              {/* Interview Card 2 */}
-              <div className="bg-slate-50 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-slate-200 shadow-sm flex flex-col items-stretch w-full overflow-hidden">
-                <p className="text-blue-600 font-black text-[10px] md:text-[12px] uppercase tracking-[0.4em] mb-4">
-                  Berliner Rundfunk
-                </p>
-                <h4 className="text-xl md:text-3xl font-bold mb-6 font-serif italic">
-                  Victor Grossman Begegnungen mit Pete Seeger (1979)
-                </h4>
-                <p className="text-slate-600 text-base md:text-lg mb-8 leading-relaxed">
-                  Historische Sendung: Victor Grossman im Gespräch über Pete
-                  Seeger und die Kraft politischer Lieder.
-                </p>
-
-                {playingUrl === interview2Url && (
-                  <div className="w-full space-y-4 mb-8">
-                    <div className="flex justify-between items-center text-[10px] font-black text-slate-400 font-mono tracking-widest mb-1">
-                      <span>{formatTime(audioCurrentTime)}</span>
-                      <span>{formatTime(audioDuration)}</span>
-                    </div>
-                    <div className="relative h-6 flex items-center">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={audioProgress}
-                        onChange={handleSeek}
-                        className="w-full appearance-none bg-transparent cursor-pointer z-10"
-                      />
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[4px] bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{ width: `${audioProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex">
-                  <button
-                    onClick={() => handleToggleAudio(interview2Url)}
-                    className={`text-[10px] md:text-[12px] font-black uppercase tracking-widest px-8 md:px-10 py-3 md:py-4 rounded-full transition-all shadow-lg active:scale-95 flex items-center gap-3 ${
-                      playingUrl === interview2Url
-                        ? "bg-blue-600 text-white"
-                        : "border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white"
-                    }`}
-                  >
-                    {playingUrl === interview2Url ? "Pause" : "Play Interview"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Interview Card 3 - Video */}
-              <div className="bg-slate-50 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-slate-200 shadow-sm flex flex-col items-stretch w-full overflow-hidden md:col-span-2">
-                <p className="text-blue-600 font-black text-[10px] md:text-[12px] uppercase tracking-[0.4em] mb-4">
-                  Video Portrait
-                </p>
-                <h4 className="text-2xl md:text-3xl font-bold mb-6 font-serif italic">
-                  Ein Leben für die Gerechtigkeit
-                </h4>
-                <div className="w-full rounded-2xl overflow-hidden shadow-lg bg-black aspect-video relative">
-                  <video
-                    controls
-                    className="w-full h-full object-cover"
-                    poster="https://bilder.deutschlandfunk.de/FI/LE/_3/70/FILE_37094d6d0577fb2093d8e96b3ff84bd9/2630844420-victor-2019-jpg-100-1920x1080.jpg"
-                  >
-                    <source
-                      src="https://ik.imagekit.io/mq26ahrml/VictorG_08052026.mp4?updatedAt=1770766503473"
-                      type="video/mp4"
-                    />
-                    Your browser does not support the video tag.
-                  </video>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </section>
       </main>
@@ -1937,62 +1983,14 @@ const App: React.FC = () => {
       <ArticleReader
         article={selectedArticle}
         onClose={() => setSelectedArticle(null)}
+        lang={lang}
       />
 
-      {selectedBulletin && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-8 bg-slate-900/60 backdrop-blur-sm">
-          <div
-            className="absolute inset-0"
-            onClick={() => setSelectedBulletin(null)}
-          />
-          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 md:p-10">
-            <button
-              onClick={() => setSelectedBulletin(null)}
-              className="absolute top-4 right-4 md:top-5 md:right-5 w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-700 hover:text-slate-900"
-              aria-label="Close bulletin"
-            >
-              <svg
-                className="w-5 h-5 mx-auto"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-
-            <div className="mb-6 pr-10">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                  {selectedBulletin.bulletin_number || "Berlin Bulletin"}
-                </span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  {new Date(
-                    selectedBulletin.published_date ||
-                      selectedBulletin.created_at,
-                  ).toLocaleDateString()}
-                </span>
-              </div>
-              <h3 className="text-2xl md:text-4xl font-bold font-serif italic text-slate-900 leading-tight">
-                {selectedBulletin.title}
-              </h3>
-            </div>
-
-            <div className="h-1 w-20 bg-blue-600 rounded-full mb-8" />
-
-            <div className="prose prose-slate max-w-none text-slate-800">
-              <p className="whitespace-pre-line leading-relaxed text-base md:text-lg">
-                {selectedBulletin.content}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <BulletinReader
+        bulletin={selectedBulletin}
+        onClose={() => setSelectedBulletin(null)}
+        lang={lang}
+      />
     </div>
   );
 };

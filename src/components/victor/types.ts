@@ -48,6 +48,22 @@ export interface Article {
   is_published: boolean;
 }
 
+export type InterviewMediaType = "audio" | "video";
+
+export interface Interview {
+  id: string;
+  title: string;
+  person: string;
+  role?: string | null;
+  content?: string | null;
+  image_url?: string | null;
+  media_type: InterviewMediaType;
+  media_url: string;
+  location_meta?: string | null;
+  sort_order: number;
+  created_at?: string;
+}
+
 export enum Section {
   Home = "home",
   Funeral = "funeral",

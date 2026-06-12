@@ -172,3 +172,28 @@ export async function uploadBufferToImageKit(
   if (!url) throw new Error("ImageKit uploadBufferToImageKit: missing returned URL.")
   return url
 }
+
+/**
+ * Upload audio or video to ImageKit without image compression.
+ */
+export async function uploadMediaToImageKit(
+  file: File,
+  folder: string,
+): Promise<string> {
+  const bytes = await file.arrayBuffer()
+  const buffer = Buffer.from(bytes)
+  const fileName = file.name?.trim() || "media.bin"
+  const mediaFile = await toFile(buffer, fileName, {
+    type: file.type || "application/octet-stream",
+  })
+
+  const result = await imagekit.files.upload({
+    file: mediaFile,
+    fileName,
+    folder: imageKitCmsFolder(folder),
+  })
+
+  const url = result.url
+  if (!url) throw new Error("ImageKit uploadMediaToImageKit: missing returned URL.")
+  return url
+}

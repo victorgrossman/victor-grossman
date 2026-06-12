@@ -6,6 +6,7 @@ import {
   deleteImageKitFileByPublicUrl,
   uploadToImageKit,
 } from "@/lib/imagekit"
+import { hasMeaningfulHtml } from "@/lib/html"
 
 function parseBool(v: FormDataEntryValue | null): boolean {
   return v === "true" || v === "on" || v === "1"
@@ -34,7 +35,8 @@ export async function createArticle(formData: FormData) {
   const imageFile = formData.get("image") as File | null
 
   if (!title) return { ok: false as const, message: "Title is required." }
-  if (!content) return { ok: false as const, message: "Content is required." }
+  if (!hasMeaningfulHtml(content))
+    return { ok: false as const, message: "Content is required." }
 
   const supabase = createSupabaseServerClient()
 
@@ -83,7 +85,8 @@ export async function updateArticle(articleId: string, formData: FormData) {
 
   if (!articleId) return { ok: false as const, message: "Missing id." }
   if (!title) return { ok: false as const, message: "Title is required." }
-  if (!content) return { ok: false as const, message: "Content is required." }
+  if (!hasMeaningfulHtml(content))
+    return { ok: false as const, message: "Content is required." }
 
   const supabase = createSupabaseServerClient()
 
@@ -172,4 +175,20 @@ export async function deleteArticle(articleId: string) {
   revalidatePath("/admin/articles")
   revalidatePath("/admin")
   return { ok: true as const }
+}
+
+export async function uploadArticleContentImage(formData: FormData) {
+  const imageFile = formData.get("file") as File | null
+  if (!imageFile || imageFile.size === 0) {
+    return { ok: false as const, message: "No image provided.", url: null }
+  }
+
+  try {
+    const url = await uploadToImageKit(imageFile, "articles")
+    return { ok: true as const, url }
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Image upload failed."
+    return { ok: false as const, message, url: null }
+  }
 }
