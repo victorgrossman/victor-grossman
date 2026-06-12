@@ -1,12 +1,15 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Navbar } from "./Navbar";
 import { MemoryCard } from "./MemoryCard";
-import { TributeModal } from "./TributeModal";
-import { MemoryDetailModal } from "./MemoryDetailModal";
 import { ScrollRevealParagraph } from "./ScrollRevealParagraph";
-import { ArticleReader } from "./ArticleReader";
+import { ArticleCard } from "./ArticleCard";
+import { BulletinCard } from "./BulletinCard";
+import { ContentTranslationProvider } from "./ContentTranslationContext";
+import { SITE_COPY } from "./copy";
+import { VictorImage } from "./VictorImage";
 import {
   Section,
   Memory,
@@ -14,21 +17,71 @@ import {
   Article,
   Book,
   Bulletin,
+  Interview,
 } from "./types";
+import { InterviewCard } from "./InterviewCard";
 import { PlusIcon, CameraIcon, BookIcon } from "./constants";
+import {
+  fetchBulletinBodies,
+  fetchMemories,
+  loadInitialSiteData,
+} from "@/lib/victor/site-data";
 import { supabase, isSupabaseConfigured } from "@/lib/victor/supabase";
 
+const ArticleReader = dynamic(
+  () => import("./ArticleReader").then((m) => ({ default: m.ArticleReader })),
+  { loading: () => null },
+);
+const BulletinReader = dynamic(
+  () => import("./BulletinReader").then((m) => ({ default: m.BulletinReader })),
+  { loading: () => null },
+);
+const TributeModal = dynamic(
+  () => import("./TributeModal").then((m) => ({ default: m.TributeModal })),
+  { loading: () => null },
+);
+const MemoryDetailModal = dynamic(
+  () =>
+    import("./MemoryDetailModal").then((m) => ({
+      default: m.MemoryDetailModal,
+    })),
+  { loading: () => null },
+);
+
+const BULLETIN_ARCHIVE_START_YEAR = 2017;
+const BULLETIN_ARCHIVE_END_YEAR = 2025;
+const BULLETIN_ARCHIVE_YEARS = Array.from(
+  { length: BULLETIN_ARCHIVE_END_YEAR - BULLETIN_ARCHIVE_START_YEAR + 1 },
+  (_, i) => BULLETIN_ARCHIVE_START_YEAR + i,
+);
+
+function getBulletinYear(bulletin: Bulletin): number {
+  const date = bulletin.published_date || bulletin.created_at;
+  return new Date(date).getFullYear();
+}
+
+function isInBerlinArchive(bulletin: Bulletin): boolean {
+  const year = getBulletinYear(bulletin);
+  return year >= BULLETIN_ARCHIVE_START_YEAR && year <= BULLETIN_ARCHIVE_END_YEAR;
+}
+
 const App: React.FC = () => {
-  const [lang, setLang] = useState<"en" | "de">("de");
+  const [lang, setLang] = useState<"en" | "de">("en");
   const [currentSection, setCurrentSection] = useState<Section>(Section.Home);
-  const [view, setView] = useState<"main" | "gallery" | "articles">("main");
+  const [view, setView] = useState<"main" | "gallery" | "articles" | "bulletins">(
+    "main",
+  );
   const [memories, setMemories] = useState<Memory[]>([]);
   const [archivePhotos, setArchivePhotos] = useState<ArchivePhoto[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [booksPage, setBooksPage] = useState(0);
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
   const [bulletinsPage, setBulletinsPage] = useState(0);
+  const [selectedBulletinYear, setSelectedBulletinYear] = useState(
+    BULLETIN_ARCHIVE_END_YEAR,
+  );
   const [pendingMainSection, setPendingMainSection] = useState<Section | null>(
     null,
   );
@@ -80,11 +133,50 @@ const App: React.FC = () => {
   ];
 
   useEffect(() => {
-    fetchMemories();
-    fetchArchivePhotos();
-    fetchArticles();
-    fetchBooks();
-    fetchBulletins();
+    if (!isSupabaseConfigured()) {
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const data = await loadInitialSiteData(supabase, lang);
+        if (cancelled) return;
+
+        setMemories(data.memories);
+        setArchivePhotos(data.archivePhotos);
+        setArticles(data.articles);
+        setBooks(data.books);
+        setInterviews(data.interviews);
+        setBulletins(data.bulletinSummaries);
+      } catch (err) {
+        console.error("Error loading site data:", err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+
+      try {
+        const bodies = await fetchBulletinBodies(supabase);
+        if (cancelled) return;
+
+        setBulletins((prev) =>
+          prev.map((bulletin) => ({
+            ...bulletin,
+            content: bodies[bulletin.id] ?? bulletin.content ?? "",
+          })),
+        );
+      } catch (err) {
+        console.error("Error loading bulletin bodies:", err);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [lang]);
 
   useEffect(() => {
@@ -94,6 +186,10 @@ const App: React.FC = () => {
   useEffect(() => {
     setBulletinsPage(0);
   }, [bulletins.length]);
+
+  useEffect(() => {
+    setBulletinsPage(0);
+  }, [selectedBulletinYear]);
 
   useEffect(() => {
     audioRef.current = new Audio();
@@ -224,126 +320,14 @@ const App: React.FC = () => {
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const fetchArchivePhotos = async () => {
+  const refreshMemories = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     try {
-      const approvedQuery = await supabase
-        .from("photos")
-        .select("id,title,image_url,created_at")
-        .or("status.eq.approved,status.is.null")
-        .order("created_at", { ascending: false });
-
-      // Backward compatibility: if moderation columns are not migrated yet,
-      // retry without status filter so existing photos still render.
-      let data = approvedQuery.data;
-      let error = approvedQuery.error;
-      if (error && (error.message || "").toLowerCase().includes("status")) {
-        const legacyQuery = await supabase
-          .from("photos")
-          .select("id,title,image_url,created_at")
-          .order("created_at", { ascending: false });
-        data = legacyQuery.data;
-        error = legacyQuery.error;
-      }
-
-      if (error) throw error;
-      setArchivePhotos(
-        (data ?? []).map((row) => ({
-          id: row.id,
-          url: row.image_url,
-          caption: row.title ?? "",
-          contributor: "Victor Grossman Archive",
-          created_at: row.created_at,
-        })),
-      );
-    } catch (err) {
-      console.error("Error fetching photos:", err);
-    }
-  };
-
-  const fetchArticles = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const { data, error } = await supabase
-        .from("articles")
-        .select(
-          "id,created_at,title,content,excerpt,image_url,category,author,is_published",
-        )
-        .eq("is_published", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setArticles(data || []);
-    } catch (err) {
-      console.error("Error fetching articles:", err);
-    }
-  };
-
-  const fetchMemories = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("tributes")
-        .select("id,name,message,image_url,created_at,status")
-        .eq("status", "approved")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setMemories(
-        data?.map((d) => ({
-          id: d.id,
-          author: d.name,
-          message: d.message,
-          image: d.image_url || undefined,
-          initials:
-            d.name
-              .split(" ")
-              .map((n: string) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2) || "??",
-          color: "bg-slate-900",
-          date: new Date(d.created_at).toLocaleDateString(
-            lang === "en" ? "en-US" : "de-DE",
-            { year: "numeric", month: "long", day: "numeric" },
-          ),
-        })) || [],
-      );
+      setMemories(await fetchMemories(supabase, lang));
     } catch (err) {
       console.error("Error fetching memories:", err);
-    } finally {
-      setIsLoading(false);
     }
-  };
-
-  const fetchBooks = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const { data, error } = await supabase
-        .from("books")
-        .select("id,title,author,description,image_url,created_at")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setBooks(data ?? []);
-    } catch (err) {
-      console.error("Error fetching books:", err);
-    }
-  };
-
-  const fetchBulletins = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const { data, error } = await supabase
-        .from("bulletins")
-        .select("id,bulletin_number,title,content,published_date,created_at")
-        .order("published_date", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setBulletins(data ?? []);
-    } catch (err) {
-      console.error("Error fetching bulletins:", err);
-    }
-  };
+  }, [lang]);
 
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -514,7 +498,7 @@ const App: React.FC = () => {
     }
 
     if (error) return false;
-    fetchMemories();
+    refreshMemories();
     return true;
   };
 
@@ -535,6 +519,13 @@ const App: React.FC = () => {
       return;
     }
 
+    if (section === Section.Blogs) {
+      setPendingMainSection(null);
+      setView("bulletins");
+      window.scrollTo(0, 0);
+      return;
+    }
+
     if (view !== "main") {
       setPendingMainSection(section);
       setView("main");
@@ -544,114 +535,106 @@ const App: React.FC = () => {
     scrollToMainSection(section);
   };
 
-  const allPhotos = [
-    ...archivePhotos.map((p) => ({
-      url: p.url,
-      contributor: p.contributor,
-      caption: p.caption || "",
-      id: p.id,
-    })),
-    ...memories
-      .filter((m) => m.image)
-      .map((m) => ({
-        url: m.image!,
-        contributor: m.author,
-        caption: m.message.slice(0, 50) + "...",
-        id: m.id,
+  const allPhotos = useMemo(
+    () => [
+      ...archivePhotos.map((p) => ({
+        url: p.url,
+        contributor: p.contributor,
+        caption: p.caption || "",
+        id: p.id,
       })),
-  ];
+      ...memories
+        .filter((m) => m.image)
+        .map((m) => ({
+          url: m.image!,
+          contributor: m.author,
+          caption: m.message.slice(0, 50) + "...",
+          id: m.id,
+        })),
+    ],
+    [archivePhotos, memories],
+  );
 
-  const filmArticles = articles.filter((a) => {
-    const category = (a.category || "").toLowerCase();
-    return category.includes("film") || category.includes("video");
-  });
+  const filmArticles = useMemo(
+    () =>
+      articles.filter((a) => {
+        const category = (a.category || "").toLowerCase();
+        return category.includes("film") || category.includes("video");
+      }),
+    [articles],
+  );
 
   const booksPerPage = 6;
   const totalBooksPages = Math.max(1, Math.ceil(books.length / booksPerPage));
   const currentBooksPage = Math.min(booksPage, totalBooksPages - 1);
-  const visibleBooks = books.slice(
-    currentBooksPage * booksPerPage,
-    (currentBooksPage + 1) * booksPerPage,
+  const visibleBooks = useMemo(
+    () =>
+      books.slice(
+        currentBooksPage * booksPerPage,
+        (currentBooksPage + 1) * booksPerPage,
+      ),
+    [books, currentBooksPage, booksPerPage],
   );
 
   const bulletinsPerPage = 4;
-  const totalBulletinPages = Math.max(
-    1,
-    Math.ceil(bulletins.length / bulletinsPerPage),
-  );
-  const currentBulletinsPage = Math.min(bulletinsPage, totalBulletinPages - 1);
-  const visibleBulletins = bulletins.slice(
-    currentBulletinsPage * bulletinsPerPage,
-    (currentBulletinsPage + 1) * bulletinsPerPage,
-  );
+  const {
+    bulletinCountByYear,
+    visibleBulletins,
+    previewYearBulletins,
+    currentBulletinsPage,
+    totalBulletinPages,
+  } = useMemo(() => {
+    const archiveBulletins = bulletins.filter(isInBerlinArchive);
+    const byYear = BULLETIN_ARCHIVE_YEARS.reduce<Record<number, Bulletin[]>>(
+      (acc, year) => {
+        acc[year] = archiveBulletins
+          .filter((b) => getBulletinYear(b) === year)
+          .sort(
+            (a, b) =>
+              new Date(b.published_date || b.created_at).getTime() -
+              new Date(a.published_date || a.created_at).getTime(),
+          );
+        return acc;
+      },
+      {},
+    );
+    const countByYear = BULLETIN_ARCHIVE_YEARS.reduce<Record<number, number>>(
+      (acc, year) => {
+        acc[year] = byYear[year]?.length ?? 0;
+        return acc;
+      },
+      {},
+    );
+    const yearBulletins = byYear[selectedBulletinYear] ?? [];
+    const totalPages = Math.max(
+      1,
+      Math.ceil(yearBulletins.length / bulletinsPerPage),
+    );
+    const page = Math.min(bulletinsPage, totalPages - 1);
 
-  const t = {
-    en: {
-      bio1_title: "The Beginning",
-      bio1_range: "1928 — 1951",
-      bio1_text:
-        "Born Stephen Wechsler in New York City, Victor's journey began in the vibrant political atmosphere of a Jewish-American family. By the time he reached Harvard University, his world-view had sharpened into a commitment to social justice that would define every subsequent year of his long life.",
-      bio2_title: "The Danube Leap",
-      bio2_text:
-        "Facing the prospect of a military tribunal for his past affiliations, Stephen made his move. On August 12, 1952, he swam across the Danube near Linz, seeking asylum in the Soviet Zone. It was a swim away from one life, and toward another that would last over seven decades.",
-      bio3_title: "Witness to Two Worlds",
-      bio3_text:
-        "Reborn as Victor Grossman in the GDR, he became a unique historical anomaly—the only person to graduate from both Harvard University and Karl Marx University in Leipzig. For decades, he served as an author, activist, journalist, translator, and bridge between East and West.",
-      memorial_title: "Eulogy & Memorial",
-      photo_archive: "Photographic Archive",
-      photo_sub: "A curated history through images and shared memories",
-      photo_upload: "Upload Photo",
-      memories_title: "Wall of Memories",
-      memories_btn: "Post Tribute",
-      books_title: "Books & Publications",
-      articles_title: "Selected Articles",
-      bulletins_title: "Berlin Bulletins",
-      interviews_title: "Interviews & Discussions",
-      films_title: "Documentaries & Film",
-      footer_tag:
-        "Dedicated to preserving the narrative of a life that crossed borders.",
-      back_home: "Back to Home",
-      read_more: "Read Full Eulogy",
-      read_less: "Read Less",
-      view_all_articles: "View All Articles",
-      articles_archive: "Article Archive",
-      articles_desc: "A collection of writings, bulletins, and thoughts.",
-    },
-    de: {
-      bio1_title: "Der Anfang",
-      bio1_range: "1928 — 1951",
-      bio1_text:
-        "Geboren als Stephen Wechsler in New York City, begann Victors Reise in der lebendigen politischen Atmosphäre einer jüdisch-amerikanischen Familie. Als er die Harvard University erreichte, hatte sich sein Weltbild zu einem Engagement für soziale Gerechtigkeit geschärft.",
-      bio2_title: "Der Sprung in die Donau",
-      bio2_text:
-        "Angesichts eines drohenden Militärgerichtsverfahrens wegen seiner früheren Zugehörigkeiten handelte Stephen. Am 12. August 1952 durchschwamm er bei Linz die Donau und floh von der US-Besatzungszone in die sowjetische Besatzungszone in Österreich.",
-      bio3_title: "Zeuge zweier Welten",
-      bio3_text:
-        "Als Victor Grossman in der DDR wiedergeboren, wurde er zu einer einzigartigen historischen Anomalie – der einzigen Person, die sowohl die Harvard University als auch die Karl-Marx-Universität in Leipzig absolvierte. Jahrzehntelang arbeitete er als Autor, Aktivist, Journalist, Übersetzer und Brücke zwischen Ost und West.",
-      memorial_title: "Trauerrede & Gedenken",
-      photo_archive: "Fotografisches Archiv",
-      photo_sub: "Eine kuratierte Geschichte durch Bilder und Erinnerungen",
-      photo_upload: "Foto hochladen",
-      memories_title: "Wand der Erinnerungen",
-      memories_btn: "Beitrag schreiben",
-      books_title: "Bücher & Publikationen",
-      articles_title: "Ausgewählte Artikel",
-      bulletins_title: "Berlin Bulletins",
-      interviews_title: "Interviews & Gespräche",
-      films_title: "Dokumentationen & Film",
-      footer_tag:
-        "Gewidmet der Bewahrung der Erzählung eines Lebens, das Grenzen überschritt.",
-      back_home: "Zurück zum Start",
-      read_more: "Vollständigen Nachruf lesen",
-      read_less: "Weniger lesen",
-      view_all_articles: "Alle Artikel ansehen",
-      articles_archive: "Artikel Archiv",
-      articles_desc: "Eine Sammlung von Schriften, Berichten und Gedanken.",
-    },
-  }[lang];
+      return {
+        bulletinCountByYear: countByYear,
+      previewYearBulletins: yearBulletins,
+      currentBulletinsPage: page,
+      totalBulletinPages: totalPages,
+      visibleBulletins: yearBulletins.slice(
+        page * bulletinsPerPage,
+        (page + 1) * bulletinsPerPage,
+      ),
+    };
+  }, [bulletins, selectedBulletinYear, bulletinsPage]);
+
+  const bulletinYearSelectClassName =
+    "text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-700 py-3 pl-4 md:pl-5 pr-9 border border-slate-200 bg-white rounded-full shadow-sm hover:border-blue-300 focus:outline-none focus:border-blue-400 cursor-pointer appearance-none bg-[length:12px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2364748b%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')]";
+
+  const t = SITE_COPY[lang];
+
+  const withTranslations = (node: React.ReactNode) => (
+    <ContentTranslationProvider lang={lang}>{node}</ContentTranslationProvider>
+  );
 
   if (fullscreenPhoto) {
-    return (
+    return withTranslations(
       <div
         className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out"
         onClick={() => setFullscreenPhoto(null)}
@@ -675,13 +658,13 @@ const App: React.FC = () => {
           src={fullscreenPhoto}
           className="max-w-full max-h-full object-contain animate-in zoom-in-95 duration-300"
         />
-      </div>
+      </div>,
     );
   }
 
   // Dedicated Articles View
   if (view === "articles") {
-    return (
+    return withTranslations(
       <div className="min-h-screen bg-white text-slate-900 flex flex-col">
         <Navbar
           currentSection={currentSection}
@@ -715,44 +698,12 @@ const App: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {articles.map((article) => (
-              <div
+              <ArticleCard
                 key={article.id}
+                article={article}
+                lang={lang}
                 onClick={() => setSelectedArticle(article)}
-                className="group cursor-pointer flex flex-col gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-blue-200 transition-all duration-300"
-              >
-                <div className="aspect-[4/3] bg-slate-100 rounded-xl overflow-hidden relative">
-                  {article.image_url ? (
-                    <img
-                      src={article.image_url}
-                      alt={article.title}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-300 font-serif italic text-4xl">
-                      VG
-                    </div>
-                  )}
-                  <div className="absolute top-4 left-4">
-                    <span className="bg-white/95 backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full shadow-sm">
-                      {article.category}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-[1px] bg-slate-300" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      {new Date(article.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <h3 className="text-xl md:text-2xl font-bold font-serif italic mb-3 leading-tight group-hover:text-blue-600 transition-colors">
-                    {article.title}
-                  </h3>
-                  <p className="text-slate-500 text-sm line-clamp-3 leading-relaxed font-medium">
-                    {article.excerpt || "Read full article..."}
-                  </p>
-                </div>
-              </div>
+              />
             ))}
             {articles.length === 0 && (
               <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
@@ -766,13 +717,103 @@ const App: React.FC = () => {
         <ArticleReader
           article={selectedArticle}
           onClose={() => setSelectedArticle(null)}
+          lang={lang}
         />
-      </div>
+      </div>,
+    );
+  }
+
+  // Dedicated Berlin Bulletins archive (2017–2025)
+  if (view === "bulletins") {
+    return withTranslations(
+      <div className="min-h-screen bg-white text-slate-900 flex flex-col">
+        <Navbar
+          currentSection={currentSection}
+          onNavigate={handleNavigate}
+          lang={lang}
+          setLang={setLang}
+        />
+        <main className="flex-grow pt-32 px-4 md:px-6 pb-24 max-w-7xl mx-auto w-full">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-6 border-b border-slate-100 pb-10">
+            <div>
+              <div className="flex items-center gap-3 mb-4 text-blue-600">
+                <BookIcon />
+                <span className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em]">
+                  Victor Grossman
+                </span>
+              </div>
+              <h2 className="text-3xl md:text-6xl font-serif italic font-bold tracking-tight">
+                {t.bulletins_archive}
+              </h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <select
+                value={selectedBulletinYear}
+                onChange={(e) =>
+                  setSelectedBulletinYear(Number(e.target.value))
+                }
+                className={bulletinYearSelectClassName}
+                aria-label={
+                  lang === "en" ? "Filter bulletins by year" : "Berichte nach Jahr filtern"
+                }
+              >
+                {[...BULLETIN_ARCHIVE_YEARS].reverse().map((year) => {
+                  const count = bulletinCountByYear[year] ?? 0;
+                  return (
+                    <option key={year} value={year} disabled={count === 0}>
+                      {year} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+              <button
+                onClick={() => handleNavigate(Section.Home)}
+                className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors py-3 px-6 md:px-8 border border-slate-100 rounded-full whitespace-nowrap"
+              >
+                {t.back_home}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            {previewYearBulletins.map((bulletin) => (
+              <BulletinCard
+                key={bulletin.id}
+                bulletin={bulletin}
+                lang={lang}
+                readLabel={t.read_full_bulletin}
+                compact
+                onClick={() => setSelectedBulletin(bulletin)}
+              />
+            ))}
+            {previewYearBulletins.length === 0 && (
+              <div className="col-span-full py-20 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p className="font-serif italic text-xl">
+                  {lang === "en"
+                    ? `No bulletins for ${selectedBulletinYear} yet.`
+                    : `Noch keine Berichte für ${selectedBulletinYear}.`}
+                </p>
+              </div>
+            )}
+          </div>
+        </main>
+
+        <BulletinReader
+          bulletin={selectedBulletin}
+          onClose={() => setSelectedBulletin(null)}
+          lang={lang}
+        />
+        <ArticleReader
+          article={selectedArticle}
+          onClose={() => setSelectedArticle(null)}
+          lang={lang}
+        />
+      </div>,
     );
   }
 
   if (view === "gallery") {
-    return (
+    return withTranslations(
       <div className="min-h-screen bg-white text-slate-900 flex flex-col">
         <Navbar
           currentSection={currentSection}
@@ -825,8 +866,12 @@ const App: React.FC = () => {
                 onClick={() => setFullscreenPhoto(photo.url)}
                 className="masonry-item group relative overflow-hidden rounded-xl bg-slate-50 shadow-sm transition-all hover:shadow-xl cursor-zoom-in mb-4"
               >
-                <img
+                <VictorImage
                   src={photo.url}
+                  alt={photo.caption || "Archive photo"}
+                  width={800}
+                  height={600}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                   className="w-full h-auto transition-all duration-700"
                 />
                 <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -838,16 +883,11 @@ const App: React.FC = () => {
             ))}
           </div>
         </main>
-      </div>
+      </div>,
     );
   }
 
-  const interview1Url =
-    "https://prinomaaszkdknrluweo.supabase.co/storage/v1/object/public/victor%20grossman/SF-18-05-14-Victor%20Grossman-si.mp3";
-  const interview2Url =
-    "https://prinomaaszkdknrluweo.supabase.co/storage/v1/object/public/victor%20grossman/Victor%20Grossman%20Begegnungen%20mit%20Pete%20Seeger%20Berliner%20Rundfunk%2006.%20Mai%201979.mp3";
-
-  return (
+  return withTranslations(
     <div className="min-h-screen flex flex-col bg-white text-slate-800 selection:bg-blue-100 selection:text-blue-900">
       <Navbar
         currentSection={currentSection}
@@ -863,10 +903,13 @@ const App: React.FC = () => {
           className="relative h-[100dvh] md:h-[95vh] flex flex-col justify-end overflow-hidden"
         >
           <div className="absolute inset-0 z-0">
-            <img
+            <VictorImage
               src="https://bilder.deutschlandfunk.de/FI/LE/_3/70/FILE_37094d6d0577fb2093d8e96b3ff84bd9/2630844420-victor-2019-jpg-100-1920x1080.jpg"
               alt="Victor Grossman"
-              className="w-full h-full object-cover object-center"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-center"
             />
           </div>
 
@@ -1366,37 +1409,74 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {visibleBooks.map((book) => (
-                <article
-                  key={book.id}
-                  className="group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300"
-                >
-                  <div className="aspect-[4/3] bg-slate-100">
-                    {book.image_url ? (
-                      <img
-                        src={book.image_url}
-                        alt={book.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300 font-serif italic text-4xl">
-                        VG
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-6 space-y-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                      {book.author}
-                    </p>
-                    <h3 className="text-xl font-bold font-serif italic text-slate-900 leading-tight">
-                      {book.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 leading-relaxed line-clamp-4">
-                      {book.description || "No description available."}
-                    </p>
-                  </div>
-                </article>
-              ))}
+              {visibleBooks.map((book) => {
+                const amazonUrl = book.amazon_url?.trim();
+                const Wrapper = amazonUrl ? "a" : "article";
+                const wrapperProps = amazonUrl
+                  ? {
+                      href: amazonUrl,
+                      target: "_blank",
+                      rel: "noopener noreferrer",
+                      title: t.books_amazon,
+                    }
+                  : {};
+
+                return (
+                  <Wrapper
+                    key={book.id}
+                    {...wrapperProps}
+                    className={`group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 ${
+                      amazonUrl ? "block cursor-pointer hover:border-blue-200" : ""
+                    }`}
+                  >
+                    <div className="relative aspect-[4/3] bg-slate-100">
+                      {book.image_url ? (
+                        <VictorImage
+                          src={book.image_url}
+                          alt={book.title}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          className="transition-transform duration-700 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300 font-serif italic text-4xl">
+                          VG
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-6 space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                        {book.author}
+                      </p>
+                      <h3 className="text-xl font-bold font-serif italic text-slate-900 leading-tight">
+                        {book.title}
+                      </h3>
+                      <p className="text-sm text-slate-600 leading-relaxed line-clamp-4">
+                        {book.description || "No description available."}
+                      </p>
+                      {amazonUrl ? (
+                        <p className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 group-hover:text-blue-700">
+                          {t.books_amazon}
+                          <svg
+                            className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                        </p>
+                      ) : null}
+                    </div>
+                  </Wrapper>
+                );
+              })}
               {books.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <p className="font-serif italic text-xl">
@@ -1414,116 +1494,116 @@ const App: React.FC = () => {
           className="py-20 md:py-32 bg-slate-50 border-y border-slate-100"
         >
           <div className="max-w-7xl mx-auto px-6">
-            <div className="flex items-center justify-between gap-4 mb-12 md:mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold font-serif italic tracking-tight text-slate-900">
-                {t.bulletins_title}
-              </h2>
-              {bulletins.length > bulletinsPerPage && (
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBulletinsPage((prev) => Math.max(0, prev - 1))
-                    }
-                    disabled={currentBulletinsPage === 0}
-                    className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    aria-label="Previous bulletins"
-                  >
-                    <svg
-                      className="w-5 h-5 mx-auto"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 md:mb-16 gap-6">
+              <div>
+                <h2 className="text-3xl md:text-5xl font-bold font-serif italic tracking-tight text-slate-900">
+                  {t.bulletins_title}
+                </h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={selectedBulletinYear}
+                  onChange={(e) =>
+                    setSelectedBulletinYear(Number(e.target.value))
+                  }
+                  className={bulletinYearSelectClassName}
+                  aria-label={
+                    lang === "en"
+                      ? "Filter bulletins by year"
+                      : "Berichte nach Jahr filtern"
+                  }
+                >
+                  {[...BULLETIN_ARCHIVE_YEARS].reverse().map((year) => {
+                    const count = bulletinCountByYear[year] ?? 0;
+                    return (
+                      <option key={year} value={year} disabled={count === 0}>
+                        {year} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+                {previewYearBulletins.length > bulletinsPerPage && (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBulletinsPage((prev) => Math.max(0, prev - 1))
+                      }
+                      disabled={currentBulletinsPage === 0}
+                      className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Previous bulletins"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-5 h-5 mx-auto"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 19l-7-7 7-7"
+                        />
+                      </svg>
+                    </button>
 
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    {currentBulletinsPage + 1}/{totalBulletinPages}
-                  </span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                      {currentBulletinsPage + 1}/{totalBulletinPages}
+                    </span>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBulletinsPage((prev) =>
-                        Math.min(totalBulletinPages - 1, prev + 1),
-                      )
-                    }
-                    disabled={currentBulletinsPage >= totalBulletinPages - 1}
-                    className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    aria-label="Next bulletins"
-                  >
-                    <svg
-                      className="w-5 h-5 mx-auto"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setBulletinsPage((prev) =>
+                          Math.min(totalBulletinPages - 1, prev + 1),
+                        )
+                      }
+                      disabled={currentBulletinsPage >= totalBulletinPages - 1}
+                      className="w-10 h-10 rounded-full border border-slate-300 bg-white text-slate-700 hover:text-blue-600 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Next bulletins"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              )}
+                      <svg
+                        className="w-5 h-5 mx-auto"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => handleNavigate(Section.Blogs)}
+                  className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-colors py-3 px-6 md:px-8 border border-slate-200 bg-white rounded-full whitespace-nowrap shadow-sm hover:shadow-md"
+                >
+                  {t.view_all_bulletins}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
               {visibleBulletins.map((bulletin) => (
-                <article
+                <BulletinCard
                   key={bulletin.id}
+                  bulletin={bulletin}
+                  lang={lang}
+                  readLabel={t.read_full_bulletin}
                   onClick={() => setSelectedBulletin(bulletin)}
-                  className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm hover:shadow-lg transition-all cursor-pointer"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                      {bulletin.bulletin_number || "Berlin Bulletin"}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      {new Date(
-                        bulletin.published_date || bulletin.created_at,
-                      ).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <h3 className="text-2xl font-bold font-serif italic text-slate-900 mb-3 leading-tight">
-                    {bulletin.title}
-                  </h3>
-                  <p className="text-slate-600 leading-relaxed line-clamp-5">
-                    {bulletin.content}
-                  </p>
-                  <div className="mt-5 flex items-center gap-2 text-blue-600">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                      Read full bulletin
-                    </span>
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </article>
+                />
               ))}
-              {bulletins.length === 0 && (
+              {previewYearBulletins.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
                   <p className="font-serif italic text-xl">
-                    Bulletins coming soon...
+                    {lang === "en"
+                      ? `No bulletins for ${selectedBulletinYear} yet.`
+                      : `Noch keine Berichte für ${selectedBulletinYear}.`}
                   </p>
                 </div>
               )}
@@ -1547,12 +1627,14 @@ const App: React.FC = () => {
                   onClick={() => setSelectedArticle(film)}
                   className="group cursor-pointer bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all"
                 >
-                  <div className="aspect-video bg-slate-100 overflow-hidden">
+                  <div className="relative aspect-video bg-slate-100 overflow-hidden">
                     {film.image_url ? (
-                      <img
+                      <VictorImage
                         src={film.image_url}
                         alt={film.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-300 font-serif italic text-4xl">
@@ -1565,16 +1647,14 @@ const App: React.FC = () => {
                       {film.title}
                     </h3>
                     <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed">
-                      {film.excerpt || "Open to read the full entry."}
+                      {film.excerpt || t.films_read_more}
                     </p>
                   </div>
                 </article>
               ))}
               {filmArticles.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  <p className="font-serif italic text-xl">
-                    Films coming soon...
-                  </p>
+                  <p className="font-serif italic text-xl">{t.films_empty}</p>
                 </div>
               )}
             </div>
@@ -1604,50 +1684,16 @@ const App: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {articles.slice(0, 3).map((article) => (
-                <div
+                <ArticleCard
                   key={article.id}
+                  article={article}
+                  lang={lang}
                   onClick={() => setSelectedArticle(article)}
-                  className="group cursor-pointer flex flex-col gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-xl hover:border-blue-200 transition-all duration-300"
-                >
-                  <div className="aspect-[4/3] bg-slate-100 rounded-xl overflow-hidden relative">
-                    {article.image_url ? (
-                      <img
-                        src={article.image_url}
-                        alt={article.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-300 font-serif italic text-4xl">
-                        VG
-                      </div>
-                    )}
-                    <div className="absolute top-4 left-4">
-                      <span className="bg-white/95 backdrop-blur-md px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full shadow-sm">
-                        {article.category}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-8 h-[1px] bg-slate-300" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        {new Date(article.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <h3 className="text-xl md:text-2xl font-bold font-serif italic mb-3 leading-tight group-hover:text-blue-600 transition-colors">
-                      {article.title}
-                    </h3>
-                    <p className="text-slate-500 text-sm line-clamp-3 leading-relaxed font-medium">
-                      {article.excerpt || "Read full article..."}
-                    </p>
-                  </div>
-                </div>
+                />
               ))}
               {articles.length === 0 && (
                 <div className="col-span-full py-20 text-center text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-                  <p className="font-serif italic text-xl">
-                    Articles coming soon...
-                  </p>
+                  <p className="font-serif italic text-xl">{t.articles_empty}</p>
                 </div>
               )}
             </div>
@@ -1666,14 +1712,14 @@ const App: React.FC = () => {
                   {t.photo_archive}
                 </h2>
                 <p className="text-slate-400 font-medium tracking-wide">
-                  Historical records and personal snapshots
+                  {t.photo_subtitle}
                 </p>
               </div>
               <button
                 onClick={() => setView("gallery")}
                 className="text-[10px] md:text-[12px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-500 transition-all flex items-center gap-3"
               >
-                Full Collection
+                {t.photo_full_collection}
                 <svg
                   className="w-5 h-5 md:w-6 md:h-6"
                   fill="none"
@@ -1693,12 +1739,15 @@ const App: React.FC = () => {
               {allPhotos.slice(0, 4).map((photo) => (
                 <div
                   key={photo.id}
-                  className="aspect-square rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-sm bg-slate-100 cursor-zoom-in group border border-slate-200"
+                  className="relative aspect-square rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-sm bg-slate-100 cursor-zoom-in group border border-slate-200"
                   onClick={() => setView("gallery")}
                 >
-                  <img
+                  <VictorImage
                     src={photo.url}
-                    className="w-full h-full object-cover brightness-100 group-hover:scale-110 transition-all duration-1000"
+                    alt={photo.caption || "Archive photo"}
+                    fill
+                    sizes="(max-width: 1024px) 50vw, 25vw"
+                    className="object-cover brightness-100 group-hover:scale-110 transition-all duration-1000"
                   />
                 </div>
               ))}
@@ -1716,9 +1765,7 @@ const App: React.FC = () => {
               <h2 className="text-4xl md:text-7xl font-bold text-slate-900 tracking-tighter font-serif italic">
                 {t.memories_title}
               </h2>
-              <p className="text-slate-400 font-medium text-lg">
-                Voices from those whose lives he touched
-              </p>
+              <p className="text-slate-400 font-medium text-lg">{t.memories_sub}</p>
             </div>
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20">
@@ -1753,134 +1800,30 @@ const App: React.FC = () => {
             <h2 className="text-3xl md:text-6xl font-bold font-serif italic tracking-tight text-slate-900 mb-12 md:mb-16">
               {t.interviews_title}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
-              {/* Interview Card 1 */}
-              <div className="bg-slate-50 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-slate-200 shadow-sm flex flex-col items-stretch w-full overflow-hidden">
-                <p className="text-blue-600 font-black text-[10px] md:text-[12px] uppercase tracking-[0.4em] mb-4">
-                  Democracy Now!
-                </p>
-                <h4 className="text-2xl md:text-3xl font-bold mb-6 font-serif italic">
-                  The Man Who Swam to the East
-                </h4>
-                <p className="text-slate-600 text-base md:text-lg mb-8 leading-relaxed">
-                  A feature interview on the legacy of the Cold War and his
-                  pivotal 1952 decision to defect across the Danube.
-                </p>
-
-                {playingUrl === interview1Url && (
-                  <div className="w-full space-y-4 mb-8">
-                    <div className="flex justify-between items-center text-[10px] font-black text-slate-400 font-mono tracking-widest mb-1">
-                      <span>{formatTime(audioCurrentTime)}</span>
-                      <span>{formatTime(audioDuration)}</span>
-                    </div>
-                    <div className="relative h-6 flex items-center">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={audioProgress}
-                        onChange={handleSeek}
-                        className="w-full appearance-none bg-transparent cursor-pointer z-10"
-                      />
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[4px] bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{ width: `${audioProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex">
-                  <button
-                    onClick={() => handleToggleAudio(interview1Url)}
-                    className={`text-[10px] md:text-[12px] font-black uppercase tracking-widest px-8 md:px-10 py-3 md:py-4 rounded-full transition-all shadow-lg active:scale-95 flex items-center gap-3 ${
-                      playingUrl === interview1Url
-                        ? "bg-blue-600 text-white"
-                        : "border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white"
-                    }`}
-                  >
-                    {playingUrl === interview1Url ? "Pause" : "Play Interview"}
-                  </button>
-                </div>
+            {interviews.length === 0 ? (
+              <p className="text-slate-500 text-lg font-serif italic">
+                {t.interviews_empty}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                {interviews.map((interview) => (
+                  <InterviewCard
+                    key={interview.id}
+                    interview={interview}
+                    playingUrl={playingUrl}
+                    audioProgress={audioProgress}
+                    audioCurrentTime={audioCurrentTime}
+                    audioDuration={audioDuration}
+                    onToggleAudio={handleToggleAudio}
+                    onSeek={handleSeek}
+                    formatTime={formatTime}
+                    playLabel={t.interview_play}
+                    pauseLabel={t.interview_pause}
+                    videoUnsupportedLabel={t.video_unsupported}
+                  />
+                ))}
               </div>
-
-              {/* Interview Card 2 */}
-              <div className="bg-slate-50 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-slate-200 shadow-sm flex flex-col items-stretch w-full overflow-hidden">
-                <p className="text-blue-600 font-black text-[10px] md:text-[12px] uppercase tracking-[0.4em] mb-4">
-                  Berliner Rundfunk
-                </p>
-                <h4 className="text-xl md:text-3xl font-bold mb-6 font-serif italic">
-                  Victor Grossman Begegnungen mit Pete Seeger (1979)
-                </h4>
-                <p className="text-slate-600 text-base md:text-lg mb-8 leading-relaxed">
-                  Historische Sendung: Victor Grossman im Gespräch über Pete
-                  Seeger und die Kraft politischer Lieder.
-                </p>
-
-                {playingUrl === interview2Url && (
-                  <div className="w-full space-y-4 mb-8">
-                    <div className="flex justify-between items-center text-[10px] font-black text-slate-400 font-mono tracking-widest mb-1">
-                      <span>{formatTime(audioCurrentTime)}</span>
-                      <span>{formatTime(audioDuration)}</span>
-                    </div>
-                    <div className="relative h-6 flex items-center">
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={audioProgress}
-                        onChange={handleSeek}
-                        className="w-full appearance-none bg-transparent cursor-pointer z-10"
-                      />
-                      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[4px] bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full"
-                          style={{ width: `${audioProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex">
-                  <button
-                    onClick={() => handleToggleAudio(interview2Url)}
-                    className={`text-[10px] md:text-[12px] font-black uppercase tracking-widest px-8 md:px-10 py-3 md:py-4 rounded-full transition-all shadow-lg active:scale-95 flex items-center gap-3 ${
-                      playingUrl === interview2Url
-                        ? "bg-blue-600 text-white"
-                        : "border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white"
-                    }`}
-                  >
-                    {playingUrl === interview2Url ? "Pause" : "Play Interview"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Interview Card 3 - Video */}
-              <div className="bg-slate-50 p-8 md:p-12 rounded-[2rem] md:rounded-[3rem] border border-slate-200 shadow-sm flex flex-col items-stretch w-full overflow-hidden md:col-span-2">
-                <p className="text-blue-600 font-black text-[10px] md:text-[12px] uppercase tracking-[0.4em] mb-4">
-                  Video Portrait
-                </p>
-                <h4 className="text-2xl md:text-3xl font-bold mb-6 font-serif italic">
-                  Ein Leben für die Gerechtigkeit
-                </h4>
-                <div className="w-full rounded-2xl overflow-hidden shadow-lg bg-black aspect-video relative">
-                  <video
-                    controls
-                    className="w-full h-full object-cover"
-                    poster="https://bilder.deutschlandfunk.de/FI/LE/_3/70/FILE_37094d6d0577fb2093d8e96b3ff84bd9/2630844420-victor-2019-jpg-100-1920x1080.jpg"
-                  >
-                    <source
-                      src="https://ik.imagekit.io/mq26ahrml/VictorG_08052026.mp4?updatedAt=1770766503473"
-                      type="video/mp4"
-                    />
-                    Your browser does not support the video tag.
-                  </video>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </section>
       </main>
@@ -1937,63 +1880,15 @@ const App: React.FC = () => {
       <ArticleReader
         article={selectedArticle}
         onClose={() => setSelectedArticle(null)}
+        lang={lang}
       />
 
-      {selectedBulletin && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-8 bg-slate-900/60 backdrop-blur-sm">
-          <div
-            className="absolute inset-0"
-            onClick={() => setSelectedBulletin(null)}
-          />
-          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 md:p-10">
-            <button
-              onClick={() => setSelectedBulletin(null)}
-              className="absolute top-4 right-4 md:top-5 md:right-5 w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-700 hover:text-slate-900"
-              aria-label="Close bulletin"
-            >
-              <svg
-                className="w-5 h-5 mx-auto"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-
-            <div className="mb-6 pr-10">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                  {selectedBulletin.bulletin_number || "Berlin Bulletin"}
-                </span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  {new Date(
-                    selectedBulletin.published_date ||
-                      selectedBulletin.created_at,
-                  ).toLocaleDateString()}
-                </span>
-              </div>
-              <h3 className="text-2xl md:text-4xl font-bold font-serif italic text-slate-900 leading-tight">
-                {selectedBulletin.title}
-              </h3>
-            </div>
-
-            <div className="h-1 w-20 bg-blue-600 rounded-full mb-8" />
-
-            <div className="prose prose-slate max-w-none text-slate-800">
-              <p className="whitespace-pre-line leading-relaxed text-base md:text-lg">
-                {selectedBulletin.content}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <BulletinReader
+        bulletin={selectedBulletin}
+        onClose={() => setSelectedBulletin(null)}
+        lang={lang}
+      />
+    </div>,
   );
 };
 

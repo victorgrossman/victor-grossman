@@ -6,8 +6,11 @@ export default async function InterviewsPage() {
     const supabase = createSupabaseServerClient();
     const { data } = await supabase
       .from("interviews")
-      .select("id,title,person,role,content,image_url")
-      .order("created_at", { ascending: false })
+      .select(
+        "id,title,person,role,content,image_url,media_type,media_url,location_meta,sort_order",
+      )
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
       .limit(200);
 
     return <InterviewsAdmin interviews={(data ?? []) as InterviewRow[]} />;

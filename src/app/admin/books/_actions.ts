@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { parseAmazonUrl } from "@/lib/amazon-url"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import {
   deleteImageKitFileByPublicUrl,
@@ -11,10 +12,16 @@ export async function createBook(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim()
   const author = String(formData.get("author") ?? "").trim()
   const description = String(formData.get("description") ?? "").trim()
+  const amazonRaw = String(formData.get("amazon_url") ?? "").trim()
   const imageFile = formData.get("image") as File | null
 
   if (!title) return { ok: false as const, message: "Title is required." }
   if (!author) return { ok: false as const, message: "Author is required." }
+
+  const amazonParsed = parseAmazonUrl(amazonRaw)
+  if (!amazonParsed.ok) {
+    return { ok: false as const, message: "Enter a valid Amazon URL." }
+  }
 
   const supabase = createSupabaseServerClient()
 
@@ -28,6 +35,7 @@ export async function createBook(formData: FormData) {
     author,
     description,
     image_url,
+    amazon_url: amazonParsed.url,
   })
 
   if (error) return { ok: false as const, message: error.message }
@@ -39,11 +47,17 @@ export async function updateBook(bookId: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim()
   const author = String(formData.get("author") ?? "").trim()
   const description = String(formData.get("description") ?? "").trim()
+  const amazonRaw = String(formData.get("amazon_url") ?? "").trim()
   const imageFile = formData.get("image") as File | null
 
   if (!bookId) return { ok: false as const, message: "Missing id." }
   if (!title) return { ok: false as const, message: "Title is required." }
   if (!author) return { ok: false as const, message: "Author is required." }
+
+  const amazonParsed = parseAmazonUrl(amazonRaw)
+  if (!amazonParsed.ok) {
+    return { ok: false as const, message: "Enter a valid Amazon URL." }
+  }
 
   const supabase = createSupabaseServerClient()
 
@@ -64,7 +78,13 @@ export async function updateBook(bookId: string, formData: FormData) {
 
   const { error } = await supabase
     .from("books")
-    .update({ title, author, description, image_url })
+    .update({
+      title,
+      author,
+      description,
+      image_url,
+      amazon_url: amazonParsed.url,
+    })
     .eq("id", bookId)
 
   if (error) return { ok: false as const, message: error.message }
