@@ -55,6 +55,7 @@ create table if not exists public.books (
   author text not null,
   description text,
   image_url text,
+  amazon_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

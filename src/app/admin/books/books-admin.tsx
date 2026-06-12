@@ -41,6 +41,7 @@ const bookSchema = z.object({
   title: z.string().min(1, "Title is required."),
   author: z.string().min(1, "Author is required."),
   description: z.string().optional(),
+  amazon_url: z.string().optional(),
   image: z.any().optional(),
 });
 
@@ -50,6 +51,7 @@ export type BookRow = {
   author: string | null;
   description: string | null;
   image_url: string | null;
+  amazon_url?: string | null;
 };
 
 type BookFormValues = z.infer<typeof bookSchema>;
@@ -70,6 +72,7 @@ function BookForm({
       title: initial?.title ?? "",
       author: initial?.author ?? "",
       description: initial?.description ?? "",
+      amazon_url: initial?.amazon_url ?? "",
       image: undefined,
     },
     mode: "onChange",
@@ -131,6 +134,19 @@ function BookForm({
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="amazon_url">Amazon link (optional)</Label>
+        <Input
+          id="amazon_url"
+          type="url"
+          placeholder="https://www.amazon.de/dp/…"
+          {...form.register("amazon_url")}
+        />
+        <p className="text-xs text-muted-foreground">
+          Product page URL. Visitors can open it from the public Books section.
+        </p>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="image">Cover image (optional)</Label>
         <Input
           id="image"
@@ -188,6 +204,7 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
                 formData.append("title", values.title);
                 formData.append("author", values.author);
                 formData.append("description", values.description ?? "");
+                formData.append("amazon_url", values.amazon_url ?? "");
                 if (file) formData.append("image", file);
 
                 const res = await createBook(formData);
@@ -243,6 +260,11 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
                 <p className="mt-1.5 min-h-11 text-xs leading-snug text-muted-foreground line-clamp-3">
                   {(book.description ?? "").trim() || "—"}
                 </p>
+                {book.amazon_url ? (
+                  <p className="mt-1 truncate text-[10px] text-blue-600">
+                    Amazon linked
+                  </p>
+                ) : null}
               </div>
 
               {/* Actions: Edit left, Delete right */}
@@ -292,6 +314,7 @@ export function BooksAdmin({ books }: { books: BookRow[] }) {
                 formData.append("title", values.title);
                 formData.append("author", values.author);
                 formData.append("description", values.description ?? "");
+                formData.append("amazon_url", values.amazon_url ?? "");
                 if (file) formData.append("image", file);
 
                 const res = await updateBook(editing.id, formData);

@@ -1,25 +1,15 @@
-import type { SiteLang } from "./types";
+export type DetectedLang = "en" | "de";
 
-/** Lightweight heuristic — good enough to skip unnecessary API calls. */
-export function detectLang(text: string): SiteLang {
-  const sample = text.slice(0, 1200).toLowerCase();
-  if (!sample.trim()) return "en";
-
-  const deHints =
-    (sample.match(/[äöüß]/g) || []).length +
+/** Lightweight heuristic for memorial content (English bulletins vs German articles). */
+export function detectContentLang(text: string): DetectedLang {
+  const sample = text.slice(0, 2000).toLowerCase();
+  const german =
     (sample.match(
-      /\b(der|die|das|und|ist|nicht|ein|eine|mit|auf|für|auch|wurde|sind|haben|wird|nach|bei|aus|dem|den|des|vom|zum|zur|über|unter|zwischen|während|weil|wenn|dass|schon|noch|nur|sehr|mehr|alle|dieser|diese|dieses|jahr|jahren|berlin|deutschland)\b/g,
-    ) || []).length;
-
-  const enHints =
+      /\b(der|die|das|und|ist|ein|eine|mit|für|auf|nicht|auch|von|dem|den|des|sich|war|wurde|nach|bei|am|im|zum|zur)\b/g,
+    ) ?? []).length;
+  const english =
     (sample.match(
-      /\b(the|and|is|was|with|for|that|this|from|have|has|had|were|been|being|would|could|should|about|into|through|during|before|after|above|below|between|under|again|further|then|once|here|there|when|where|why|how|all|each|few|more|most|other|some|such|only|own|same|than|too|very|can|will|just|don|now|year|years|berlin|germany)\b/g,
-    ) || []).length;
-
-  return deHints > enHints ? "de" : "en";
-}
-
-export function needsTranslation(text: string, targetLang: SiteLang): boolean {
-  if (!text.trim()) return false;
-  return detectLang(text) !== targetLang;
+      /\b(the|and|is|are|was|were|with|for|not|also|from|that|this|have|has|had|but|they|their|been|would)\b/g,
+    ) ?? []).length;
+  return german > english ? "de" : "en";
 }

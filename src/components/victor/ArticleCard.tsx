@@ -1,6 +1,8 @@
 "use client";
 
 import { stripHtml } from "@/lib/html";
+import { useContentText } from "./ContentTranslationContext";
+import { VictorImage } from "./VictorImage";
 import { Article } from "./types";
 
 type ArticleCardProps = {
@@ -16,6 +18,22 @@ export function ArticleCard({
   onClick,
   showCategory = true,
 }: ArticleCardProps) {
+  const fallbackExcerpt = article.excerpt
+    ? stripHtml(article.excerpt)
+    : article.content
+      ? stripHtml(article.content).slice(0, 200)
+      : lang === "en"
+        ? "Read full article..."
+        : "Ganzen Artikel lesen…";
+
+  const title = useContentText("article", article.id, "title", article.title);
+  const excerpt = useContentText(
+    "article",
+    article.id,
+    "excerpt",
+    fallbackExcerpt,
+  );
+
   return (
     <div
       onClick={onClick}
@@ -23,10 +41,12 @@ export function ArticleCard({
     >
       <div className="aspect-[4/3] bg-slate-100 rounded-xl overflow-hidden relative">
         {article.image_url ? (
-          <img
+          <VictorImage
             src={article.image_url}
-            alt={article.title}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            alt={title}
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="transition-transform duration-700 group-hover:scale-105"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-300 font-serif italic text-4xl">
@@ -51,13 +71,10 @@ export function ArticleCard({
           </span>
         </div>
         <h3 className="text-xl md:text-2xl font-bold font-serif italic mb-3 leading-tight group-hover:text-blue-600 transition-colors">
-          {article.title}
+          {title}
         </h3>
         <p className="text-slate-500 text-sm line-clamp-3 leading-relaxed font-medium">
-          {article.excerpt
-            ? stripHtml(article.excerpt)
-            : stripHtml(article.content).slice(0, 200) ||
-              (lang === "en" ? "Read full article..." : "Ganzen Artikel lesen…")}
+          {excerpt}
         </p>
       </div>
     </div>

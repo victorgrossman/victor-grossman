@@ -2,7 +2,11 @@
 
 import React, { useEffect } from "react";
 
+import { useRecordContent } from "@/lib/victor/use-record-content";
+
 import { ArticleContent } from "./ArticleContent";
+import { useContentText } from "./ContentTranslationContext";
+import { VictorImage } from "./VictorImage";
 import { Article } from "./types";
 
 interface ArticleReaderProps {
@@ -16,6 +20,25 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   onClose,
   lang,
 }) => {
+  const { content: loadedContent, isLoading } = useRecordContent(
+    "articles",
+    article?.id,
+    article?.content,
+  );
+
+  const title = useContentText(
+    "article",
+    article?.id ?? "",
+    "title",
+    article?.title ?? "",
+  );
+  const content = useContentText(
+    "article",
+    article?.id ?? "",
+    "content",
+    loadedContent,
+  );
+
   useEffect(() => {
     if (article) {
       document.body.style.overflow = "hidden";
@@ -57,10 +80,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
 
         <div className="relative h-[40vh] -mt-24">
           {article.image_url ? (
-            <img
+            <VictorImage
               src={article.image_url}
-              className="w-full h-full object-cover"
-              alt={article.title}
+              alt={title}
+              fill
+              sizes="(max-width: 768px) 100vw, 896px"
+              className="object-cover"
             />
           ) : (
             <div className="w-full h-full bg-slate-100 flex items-center justify-center">
@@ -85,12 +110,16 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               </span>
             </div>
             <h1 className="text-3xl md:text-5xl font-bold font-serif italic text-slate-900 leading-tight mb-6">
-              {article.title}
+              {title}
             </h1>
             <div className="h-1 w-20 bg-blue-600 rounded-full" />
           </div>
 
-          <ArticleContent html={article.content || ""} />
+          {isLoading && !content.trim() ? (
+            <p className="text-sm text-slate-500 animate-pulse">Loading…</p>
+          ) : (
+            <ArticleContent html={content} />
+          )}
 
           <div className="mt-16 pt-10 border-t border-slate-100 text-center">
             <p className="text-slate-400 text-xs font-black uppercase tracking-widest">

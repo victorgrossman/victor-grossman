@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useEffect } from "react";
+
+import { useRecordContent } from "@/lib/victor/use-record-content";
+
+import { useContentText } from "./ContentTranslationContext";
 import { Bulletin } from "./types";
 
 interface BulletinReaderProps {
@@ -14,6 +18,25 @@ export const BulletinReader: React.FC<BulletinReaderProps> = ({
   onClose,
   lang,
 }) => {
+  const { content: loadedContent, isLoading } = useRecordContent(
+    "bulletins",
+    bulletin?.id,
+    bulletin?.content,
+  );
+
+  const title = useContentText(
+    "bulletin",
+    bulletin?.id ?? "",
+    "title",
+    bulletin?.title ?? "",
+  );
+  const content = useContentText(
+    "bulletin",
+    bulletin?.id ?? "",
+    "content",
+    loadedContent,
+  );
+
   useEffect(() => {
     if (bulletin) {
       document.body.style.overflow = "hidden";
@@ -63,16 +86,20 @@ export const BulletinReader: React.FC<BulletinReaderProps> = ({
             </span>
           </div>
           <h3 className="text-2xl md:text-4xl font-bold font-serif italic text-slate-900 leading-tight">
-            {bulletin.title}
+            {title}
           </h3>
         </div>
 
         <div className="h-1 w-20 bg-blue-600 rounded-full mb-8" />
 
         <div className="prose prose-slate max-w-none text-slate-800">
-          <p className="whitespace-pre-line leading-relaxed text-base md:text-lg">
-            {bulletin.content}
-          </p>
+          {isLoading && !content.trim() ? (
+            <p className="text-sm text-slate-500 animate-pulse">Loading…</p>
+          ) : (
+            <p className="whitespace-pre-line leading-relaxed text-base md:text-lg">
+              {content}
+            </p>
+          )}
         </div>
       </div>
     </div>

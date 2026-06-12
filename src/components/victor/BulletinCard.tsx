@@ -1,5 +1,7 @@
 "use client";
 
+import { useContentText } from "./ContentTranslationContext";
+import { plainExcerpt } from "@/lib/content-translations/resolve";
 import { Bulletin } from "./types";
 
 type BulletinCardProps = {
@@ -17,6 +19,19 @@ export function BulletinCard({
   readLabel,
   compact = false,
 }: BulletinCardProps) {
+  const title = useContentText(
+    "bulletin",
+    bulletin.id,
+    "title",
+    bulletin.title,
+  );
+  const preview = useContentText(
+    "bulletin",
+    bulletin.id,
+    "excerpt",
+    bulletin.content ? plainExcerpt(bulletin.content) : "",
+  );
+
   return (
     <article
       onClick={onClick}
@@ -41,11 +56,9 @@ export function BulletinCard({
           compact ? "text-xl md:text-2xl" : "text-2xl"
         }`}
       >
-        {bulletin.title}
+        {title}
       </h3>
-      <p className="text-slate-600 leading-relaxed line-clamp-5">
-        {bulletin.content}
-      </p>
+      <p className="text-slate-600 leading-relaxed line-clamp-5">{preview}</p>
       <div className="mt-5 flex items-center gap-2 text-blue-600">
         <span className="text-[10px] font-black uppercase tracking-[0.2em]">
           {readLabel}

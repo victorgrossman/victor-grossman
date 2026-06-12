@@ -1,3 +1,4 @@
+import { fetchGermanTranslationMap } from "@/lib/content-translations/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ArticlesAdmin } from "./articles-admin";
 
@@ -31,7 +32,11 @@ export default async function ArticlesPage() {
       .order("created_at", { ascending: false })
       .limit(200);
 
-    const result = await query;
+    const [result, germanById] = await Promise.all([
+      query,
+      fetchGermanTranslationMap("article"),
+    ]);
+
     let rows = result.data as Record<string, unknown>[] | null;
     let error = result.error;
 
@@ -47,12 +52,17 @@ export default async function ArticlesPage() {
 
     if (error) {
       console.error("[admin/articles] Supabase:", error.message);
-      return <ArticlesAdmin articles={[]} />;
+      return <ArticlesAdmin articles={[]} germanById={{}} />;
     }
 
-    return <ArticlesAdmin articles={normalizeArticleRows(rows ?? [])} />;
+    return (
+      <ArticlesAdmin
+        articles={normalizeArticleRows(rows ?? [])}
+        germanById={germanById}
+      />
+    );
   } catch (e) {
     console.error("[admin/articles]", e);
-    return <ArticlesAdmin articles={[]} />;
+    return <ArticlesAdmin articles={[]} germanById={{}} />;
   }
 }

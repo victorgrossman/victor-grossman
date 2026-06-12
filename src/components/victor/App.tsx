@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import dynamic from "next/dynamic";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Navbar } from "./Navbar";
 import { MemoryCard } from "./MemoryCard";
-import { TributeModal } from "./TributeModal";
-import { MemoryDetailModal } from "./MemoryDetailModal";
 import { ScrollRevealParagraph } from "./ScrollRevealParagraph";
-import { ArticleReader } from "./ArticleReader";
 import { ArticleCard } from "./ArticleCard";
-import { BulletinReader } from "./BulletinReader";
 import { BulletinCard } from "./BulletinCard";
+import { ContentTranslationProvider } from "./ContentTranslationContext";
+import { SITE_COPY } from "./copy";
+import { VictorImage } from "./VictorImage";
 import {
   Section,
   Memory,
@@ -21,7 +21,32 @@ import {
 } from "./types";
 import { InterviewCard } from "./InterviewCard";
 import { PlusIcon, CameraIcon, BookIcon } from "./constants";
+import {
+  fetchBulletinBodies,
+  fetchMemories,
+  loadInitialSiteData,
+} from "@/lib/victor/site-data";
 import { supabase, isSupabaseConfigured } from "@/lib/victor/supabase";
+
+const ArticleReader = dynamic(
+  () => import("./ArticleReader").then((m) => ({ default: m.ArticleReader })),
+  { loading: () => null },
+);
+const BulletinReader = dynamic(
+  () => import("./BulletinReader").then((m) => ({ default: m.BulletinReader })),
+  { loading: () => null },
+);
+const TributeModal = dynamic(
+  () => import("./TributeModal").then((m) => ({ default: m.TributeModal })),
+  { loading: () => null },
+);
+const MemoryDetailModal = dynamic(
+  () =>
+    import("./MemoryDetailModal").then((m) => ({
+      default: m.MemoryDetailModal,
+    })),
+  { loading: () => null },
+);
 
 const BULLETIN_ARCHIVE_START_YEAR = 2017;
 const BULLETIN_ARCHIVE_END_YEAR = 2025;
@@ -41,7 +66,7 @@ function isInBerlinArchive(bulletin: Bulletin): boolean {
 }
 
 const App: React.FC = () => {
-  const [lang, setLang] = useState<"en" | "de">("de");
+  const [lang, setLang] = useState<"en" | "de">("en");
   const [currentSection, setCurrentSection] = useState<Section>(Section.Home);
   const [view, setView] = useState<"main" | "gallery" | "articles" | "bulletins">(
     "main",
@@ -108,12 +133,50 @@ const App: React.FC = () => {
   ];
 
   useEffect(() => {
-    fetchMemories();
-    fetchArchivePhotos();
-    fetchArticles();
-    fetchBooks();
-    fetchBulletins();
-    fetchInterviews();
+    if (!isSupabaseConfigured()) {
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const data = await loadInitialSiteData(supabase, lang);
+        if (cancelled) return;
+
+        setMemories(data.memories);
+        setArchivePhotos(data.archivePhotos);
+        setArticles(data.articles);
+        setBooks(data.books);
+        setInterviews(data.interviews);
+        setBulletins(data.bulletinSummaries);
+      } catch (err) {
+        console.error("Error loading site data:", err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+
+      try {
+        const bodies = await fetchBulletinBodies(supabase);
+        if (cancelled) return;
+
+        setBulletins((prev) =>
+          prev.map((bulletin) => ({
+            ...bulletin,
+            content: bodies[bulletin.id] ?? bulletin.content ?? "",
+          })),
+        );
+      } catch (err) {
+        console.error("Error loading bulletin bodies:", err);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [lang]);
 
   useEffect(() => {
@@ -257,167 +320,14 @@ const App: React.FC = () => {
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const fetchArchivePhotos = async () => {
+  const refreshMemories = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     try {
-      const approvedQuery = await supabase
-        .from("photos")
-        .select("id,title,image_url,created_at")
-        .or("status.eq.approved,status.is.null")
-        .order("created_at", { ascending: false });
-
-      // Backward compatibility: if moderation columns are not migrated yet,
-      // retry without status filter so existing photos still render.
-      let data = approvedQuery.data;
-      let error = approvedQuery.error;
-      if (error && (error.message || "").toLowerCase().includes("status")) {
-        const legacyQuery = await supabase
-          .from("photos")
-          .select("id,title,image_url,created_at")
-          .order("created_at", { ascending: false });
-        data = legacyQuery.data;
-        error = legacyQuery.error;
-      }
-
-      if (error) throw error;
-      setArchivePhotos(
-        (data ?? []).map((row) => ({
-          id: row.id,
-          url: row.image_url,
-          caption: row.title ?? "",
-          contributor: "Victor Grossman Archive",
-          created_at: row.created_at,
-        })),
-      );
-    } catch (err) {
-      console.error("Error fetching photos:", err);
-    }
-  };
-
-  const fetchArticles = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const { data, error } = await supabase
-        .from("articles")
-        .select(
-          "id,created_at,title,content,excerpt,image_url,category,author,is_published",
-        )
-        .eq("is_published", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setArticles(data || []);
-    } catch (err) {
-      console.error("Error fetching articles:", err);
-    }
-  };
-
-  const fetchMemories = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("tributes")
-        .select("id,name,message,image_url,created_at,status")
-        .eq("status", "approved")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setMemories(
-        data?.map((d) => ({
-          id: d.id,
-          author: d.name,
-          message: d.message,
-          image: d.image_url || undefined,
-          initials:
-            d.name
-              .split(" ")
-              .map((n: string) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2) || "??",
-          color: "bg-slate-900",
-          date: new Date(d.created_at).toLocaleDateString(
-            lang === "en" ? "en-US" : "de-DE",
-            { year: "numeric", month: "long", day: "numeric" },
-          ),
-        })) || [],
-      );
+      setMemories(await fetchMemories(supabase, lang));
     } catch (err) {
       console.error("Error fetching memories:", err);
-    } finally {
-      setIsLoading(false);
     }
-  };
-
-  const fetchBooks = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const { data, error } = await supabase
-        .from("books")
-        .select("id,title,author,description,image_url,created_at")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setBooks(data ?? []);
-    } catch (err) {
-      console.error("Error fetching books:", err);
-    }
-  };
-
-  const fetchBulletins = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const { data, error } = await supabase
-        .from("bulletins")
-        .select("id,bulletin_number,title,content,published_date,created_at")
-        .order("published_date", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      setBulletins(data ?? []);
-    } catch (err) {
-      console.error("Error fetching bulletins:", err);
-    }
-  };
-
-  const fetchInterviews = async () => {
-    if (!isSupabaseConfigured()) return;
-    try {
-      const { data, error } = await supabase
-        .from("interviews")
-        .select(
-          "id,title,person,role,content,image_url,media_type,media_url,location_meta,sort_order,created_at",
-        )
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: true });
-
-      if (error) {
-        if ((error.message || "").toLowerCase().includes("media")) {
-          setInterviews([]);
-          return;
-        }
-        throw error;
-      }
-
-      const rows = (data ?? [])
-        .filter((row) => row.media_url)
-        .map((row) => ({
-          id: row.id,
-          title: row.title,
-          person: row.person,
-          role: row.role,
-          content: row.content,
-          image_url: row.image_url,
-          media_type: row.media_type === "video" ? "video" : "audio",
-          media_url: row.media_url as string,
-          location_meta: row.location_meta,
-          sort_order: row.sort_order ?? 0,
-          created_at: row.created_at,
-        })) as Interview[];
-
-      setInterviews(rows);
-    } catch (err) {
-      console.error("Error fetching interviews:", err);
-    }
-  };
+  }, [lang]);
 
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
@@ -588,7 +498,7 @@ const App: React.FC = () => {
     }
 
     if (error) return false;
-    fetchMemories();
+    refreshMemories();
     return true;
   };
 
@@ -625,168 +535,106 @@ const App: React.FC = () => {
     scrollToMainSection(section);
   };
 
-  const allPhotos = [
-    ...archivePhotos.map((p) => ({
-      url: p.url,
-      contributor: p.contributor,
-      caption: p.caption || "",
-      id: p.id,
-    })),
-    ...memories
-      .filter((m) => m.image)
-      .map((m) => ({
-        url: m.image!,
-        contributor: m.author,
-        caption: m.message.slice(0, 50) + "...",
-        id: m.id,
+  const allPhotos = useMemo(
+    () => [
+      ...archivePhotos.map((p) => ({
+        url: p.url,
+        contributor: p.contributor,
+        caption: p.caption || "",
+        id: p.id,
       })),
-  ];
+      ...memories
+        .filter((m) => m.image)
+        .map((m) => ({
+          url: m.image!,
+          contributor: m.author,
+          caption: m.message.slice(0, 50) + "...",
+          id: m.id,
+        })),
+    ],
+    [archivePhotos, memories],
+  );
 
-  const filmArticles = articles.filter((a) => {
-    const category = (a.category || "").toLowerCase();
-    return category.includes("film") || category.includes("video");
-  });
+  const filmArticles = useMemo(
+    () =>
+      articles.filter((a) => {
+        const category = (a.category || "").toLowerCase();
+        return category.includes("film") || category.includes("video");
+      }),
+    [articles],
+  );
 
   const booksPerPage = 6;
   const totalBooksPages = Math.max(1, Math.ceil(books.length / booksPerPage));
   const currentBooksPage = Math.min(booksPage, totalBooksPages - 1);
-  const visibleBooks = books.slice(
-    currentBooksPage * booksPerPage,
-    (currentBooksPage + 1) * booksPerPage,
+  const visibleBooks = useMemo(
+    () =>
+      books.slice(
+        currentBooksPage * booksPerPage,
+        (currentBooksPage + 1) * booksPerPage,
+      ),
+    [books, currentBooksPage, booksPerPage],
   );
-
-  const archiveBulletins = bulletins.filter(isInBerlinArchive);
-  const bulletinsByYear = BULLETIN_ARCHIVE_YEARS.reduce<
-    Record<number, Bulletin[]>
-  >((acc, year) => {
-    acc[year] = archiveBulletins
-      .filter((b) => getBulletinYear(b) === year)
-      .sort(
-        (a, b) =>
-          new Date(b.published_date || b.created_at).getTime() -
-          new Date(a.published_date || a.created_at).getTime(),
-      );
-    return acc;
-  }, {});
-  const bulletinCountByYear = BULLETIN_ARCHIVE_YEARS.reduce<
-    Record<number, number>
-  >((acc, year) => {
-    acc[year] = bulletinsByYear[year]?.length ?? 0;
-    return acc;
-  }, {});
-  const visibleArchiveBulletins =
-    bulletinsByYear[selectedBulletinYear] ?? [];
 
   const bulletinsPerPage = 4;
-  const previewYearBulletins = visibleArchiveBulletins;
-  const totalBulletinPages = Math.max(
-    1,
-    Math.ceil(previewYearBulletins.length / bulletinsPerPage),
-  );
-  const currentBulletinsPage = Math.min(bulletinsPage, totalBulletinPages - 1);
-  const visibleBulletins = previewYearBulletins.slice(
-    currentBulletinsPage * bulletinsPerPage,
-    (currentBulletinsPage + 1) * bulletinsPerPage,
-  );
+  const {
+    bulletinCountByYear,
+    visibleBulletins,
+    previewYearBulletins,
+    currentBulletinsPage,
+    totalBulletinPages,
+  } = useMemo(() => {
+    const archiveBulletins = bulletins.filter(isInBerlinArchive);
+    const byYear = BULLETIN_ARCHIVE_YEARS.reduce<Record<number, Bulletin[]>>(
+      (acc, year) => {
+        acc[year] = archiveBulletins
+          .filter((b) => getBulletinYear(b) === year)
+          .sort(
+            (a, b) =>
+              new Date(b.published_date || b.created_at).getTime() -
+              new Date(a.published_date || a.created_at).getTime(),
+          );
+        return acc;
+      },
+      {},
+    );
+    const countByYear = BULLETIN_ARCHIVE_YEARS.reduce<Record<number, number>>(
+      (acc, year) => {
+        acc[year] = byYear[year]?.length ?? 0;
+        return acc;
+      },
+      {},
+    );
+    const yearBulletins = byYear[selectedBulletinYear] ?? [];
+    const totalPages = Math.max(
+      1,
+      Math.ceil(yearBulletins.length / bulletinsPerPage),
+    );
+    const page = Math.min(bulletinsPage, totalPages - 1);
+
+      return {
+        bulletinCountByYear: countByYear,
+      previewYearBulletins: yearBulletins,
+      currentBulletinsPage: page,
+      totalBulletinPages: totalPages,
+      visibleBulletins: yearBulletins.slice(
+        page * bulletinsPerPage,
+        (page + 1) * bulletinsPerPage,
+      ),
+    };
+  }, [bulletins, selectedBulletinYear, bulletinsPage]);
 
   const bulletinYearSelectClassName =
     "text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-700 py-3 pl-4 md:pl-5 pr-9 border border-slate-200 bg-white rounded-full shadow-sm hover:border-blue-300 focus:outline-none focus:border-blue-400 cursor-pointer appearance-none bg-[length:12px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%2364748b%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E')]";
 
-  const t = {
-    en: {
-      bio1_title: "The Beginning",
-      bio1_range: "1928 — 1951",
-      bio1_text:
-        "Born Stephen Wechsler in New York City, Victor's journey began in the vibrant political atmosphere of a Jewish-American family. By the time he reached Harvard University, his worldview had sharpened into a commitment to social justice that would define every subsequent year of his long life.",
-      bio2_title: "The Danube Leap",
-      bio2_text:
-        "Facing the prospect of a military tribunal for his past affiliations, Stephen made his move. On August 12, 1952, he swam across the Danube near Linz, seeking asylum in the Soviet Zone. It was a swim away from one life, and toward another that would last over seven decades.",
-      bio3_title: "Witness to Two Worlds",
-      bio3_text:
-        "Reborn as Victor Grossman in the GDR, he became a unique historical anomaly—the only person to graduate from both Harvard University and Karl Marx University in Leipzig. For decades, he served as an author, activist, journalist, translator, and bridge between East and West.",
-      memorial_title: "Eulogy & Memorial",
-      photo_archive: "Photographic Archive",
-      photo_sub: "A curated history through images and shared memories",
-      photo_upload: "Upload Photo",
-      memories_title: "Wall of Memories",
-      memories_btn: "Post Tribute",
-      books_title: "Books & Publications",
-      articles_title: "Selected Articles",
-      bulletins_title: "Berlin Bulletins",
-      bulletins_archive: "Berlin Bulletin Archive",
-      view_all_bulletins: "View full archive",
-      read_full_bulletin: "Read full bulletin",
-      interviews_title: "Interviews & Discussions",
-      interviews_empty:
-        "Interviews will appear here once they are added in the admin.",
-      interview_play: "Play Interview",
-      interview_pause: "Pause",
-      video_unsupported: "Your browser does not support video playback.",
-      films_title: "Documentaries & Films",
-      films_empty: "Films coming soon.",
-      films_read_more: "Open to read the full entry.",
-      photo_subtitle: "Historical records and personal snapshots",
-      photo_full_collection: "Full Collection",
-      memories_sub: "Voices from those whose lives he touched",
-      articles_empty: "Articles coming soon.",
-      footer_tag:
-        "Dedicated to preserving the narrative of a life that crossed borders.",
-      back_home: "Back to Home",
-      read_more: "Read Full Eulogy",
-      read_less: "Read Less",
-      view_all_articles: "View All Articles",
-      articles_archive: "Article Archive",
-      articles_desc: "A collection of writings, bulletins, and thoughts.",
-    },
-    de: {
-      bio1_title: "Der Anfang",
-      bio1_range: "1928 — 1951",
-      bio1_text:
-        "Geboren als Stephen Wechsler in New York City, begann Victors Reise in der lebendigen politischen Atmosphäre einer jüdisch-amerikanischen Familie. Als er die Harvard University erreichte, hatte sich sein Weltbild zu einem Engagement für soziale Gerechtigkeit geschärft.",
-      bio2_title: "Der Sprung in die Donau",
-      bio2_text:
-        "Angesichts eines drohenden Militärgerichtsverfahrens wegen seiner früheren Zugehörigkeiten handelte Stephen. Am 12. August 1952 durchschwamm er bei Linz die Donau und floh von der US-Besatzungszone in die sowjetische Besatzungszone in Österreich.",
-      bio3_title: "Zeuge zweier Welten",
-      bio3_text:
-        "Als Victor Grossman in der DDR wiedergeboren, wurde er zu einer einzigartigen historischen Anomalie – der einzigen Person, die sowohl die Harvard University als auch die Karl-Marx-Universität in Leipzig absolvierte. Jahrzehntelang arbeitete er als Autor, Aktivist, Journalist, Übersetzer und Brücke zwischen Ost und West.",
-      memorial_title: "Trauerrede & Gedenken",
-      photo_archive: "Fotografisches Archiv",
-      photo_sub: "Eine kuratierte Geschichte durch Bilder und Erinnerungen",
-      photo_upload: "Foto hochladen",
-      memories_title: "Wand der Erinnerungen",
-      memories_btn: "Beitrag schreiben",
-      books_title: "Bücher & Publikationen",
-      articles_title: "Ausgewählte Artikel",
-      bulletins_title: "Berlin Bulletins",
-      bulletins_archive: "Berlin-Bulletin-Archiv",
-      view_all_bulletins: "Vollständiges Archiv",
-      read_full_bulletin: "Ganzen Bericht lesen",
-      interviews_title: "Interviews & Gespräche",
-      interviews_empty:
-        "Interviews erscheinen hier, sobald sie im Admin-Bereich hinzugefügt wurden.",
-      interview_play: "Interview abspielen",
-      interview_pause: "Pause",
-      video_unsupported: "Ihr Browser unterstützt die Videowiedergabe nicht.",
-      films_title: "Dokumentationen & Filme",
-      films_empty: "Filme folgen in Kürze.",
-      films_read_more: "Zum vollständigen Eintrag.",
-      photo_subtitle: "Historische Aufzeichnungen und persönliche Aufnahmen",
-      photo_full_collection: "Vollständige Sammlung",
-      memories_sub: "Stimmen derer, deren Leben er berührt hat",
-      articles_empty: "Artikel folgen in Kürze.",
-      footer_tag:
-        "Gewidmet der Bewahrung der Erzählung eines Lebens, das Grenzen überschritt.",
-      back_home: "Zurück zum Start",
-      read_more: "Vollständigen Nachruf lesen",
-      read_less: "Weniger lesen",
-      view_all_articles: "Alle Artikel ansehen",
-      articles_archive: "Artikelarchiv",
-      articles_desc: "Eine Sammlung von Schriften, Berichten und Gedanken.",
-    },
-  }[lang];
+  const t = SITE_COPY[lang];
+
+  const withTranslations = (node: React.ReactNode) => (
+    <ContentTranslationProvider lang={lang}>{node}</ContentTranslationProvider>
+  );
 
   if (fullscreenPhoto) {
-    return (
+    return withTranslations(
       <div
         className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out"
         onClick={() => setFullscreenPhoto(null)}
@@ -810,13 +658,13 @@ const App: React.FC = () => {
           src={fullscreenPhoto}
           className="max-w-full max-h-full object-contain animate-in zoom-in-95 duration-300"
         />
-      </div>
+      </div>,
     );
   }
 
   // Dedicated Articles View
   if (view === "articles") {
-    return (
+    return withTranslations(
       <div className="min-h-screen bg-white text-slate-900 flex flex-col">
         <Navbar
           currentSection={currentSection}
@@ -871,13 +719,13 @@ const App: React.FC = () => {
           onClose={() => setSelectedArticle(null)}
           lang={lang}
         />
-      </div>
+      </div>,
     );
   }
 
   // Dedicated Berlin Bulletins archive (2017–2025)
   if (view === "bulletins") {
-    return (
+    return withTranslations(
       <div className="min-h-screen bg-white text-slate-900 flex flex-col">
         <Navbar
           currentSection={currentSection}
@@ -928,7 +776,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-            {visibleArchiveBulletins.map((bulletin) => (
+            {previewYearBulletins.map((bulletin) => (
               <BulletinCard
                 key={bulletin.id}
                 bulletin={bulletin}
@@ -938,7 +786,7 @@ const App: React.FC = () => {
                 onClick={() => setSelectedBulletin(bulletin)}
               />
             ))}
-            {visibleArchiveBulletins.length === 0 && (
+            {previewYearBulletins.length === 0 && (
               <div className="col-span-full py-20 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <p className="font-serif italic text-xl">
                   {lang === "en"
@@ -960,12 +808,12 @@ const App: React.FC = () => {
           onClose={() => setSelectedArticle(null)}
           lang={lang}
         />
-      </div>
+      </div>,
     );
   }
 
   if (view === "gallery") {
-    return (
+    return withTranslations(
       <div className="min-h-screen bg-white text-slate-900 flex flex-col">
         <Navbar
           currentSection={currentSection}
@@ -1018,8 +866,12 @@ const App: React.FC = () => {
                 onClick={() => setFullscreenPhoto(photo.url)}
                 className="masonry-item group relative overflow-hidden rounded-xl bg-slate-50 shadow-sm transition-all hover:shadow-xl cursor-zoom-in mb-4"
               >
-                <img
+                <VictorImage
                   src={photo.url}
+                  alt={photo.caption || "Archive photo"}
+                  width={800}
+                  height={600}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                   className="w-full h-auto transition-all duration-700"
                 />
                 <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1031,11 +883,11 @@ const App: React.FC = () => {
             ))}
           </div>
         </main>
-      </div>
+      </div>,
     );
   }
 
-  return (
+  return withTranslations(
     <div className="min-h-screen flex flex-col bg-white text-slate-800 selection:bg-blue-100 selection:text-blue-900">
       <Navbar
         currentSection={currentSection}
@@ -1051,10 +903,13 @@ const App: React.FC = () => {
           className="relative h-[100dvh] md:h-[95vh] flex flex-col justify-end overflow-hidden"
         >
           <div className="absolute inset-0 z-0">
-            <img
+            <VictorImage
               src="https://bilder.deutschlandfunk.de/FI/LE/_3/70/FILE_37094d6d0577fb2093d8e96b3ff84bd9/2630844420-victor-2019-jpg-100-1920x1080.jpg"
               alt="Victor Grossman"
-              className="w-full h-full object-cover object-center"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-center"
             />
           </div>
 
@@ -1554,37 +1409,74 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {visibleBooks.map((book) => (
-                <article
-                  key={book.id}
-                  className="group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300"
-                >
-                  <div className="aspect-[4/3] bg-slate-100">
-                    {book.image_url ? (
-                      <img
-                        src={book.image_url}
-                        alt={book.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300 font-serif italic text-4xl">
-                        VG
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-6 space-y-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
-                      {book.author}
-                    </p>
-                    <h3 className="text-xl font-bold font-serif italic text-slate-900 leading-tight">
-                      {book.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 leading-relaxed line-clamp-4">
-                      {book.description || "No description available."}
-                    </p>
-                  </div>
-                </article>
-              ))}
+              {visibleBooks.map((book) => {
+                const amazonUrl = book.amazon_url?.trim();
+                const Wrapper = amazonUrl ? "a" : "article";
+                const wrapperProps = amazonUrl
+                  ? {
+                      href: amazonUrl,
+                      target: "_blank",
+                      rel: "noopener noreferrer",
+                      title: t.books_amazon,
+                    }
+                  : {};
+
+                return (
+                  <Wrapper
+                    key={book.id}
+                    {...wrapperProps}
+                    className={`group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 ${
+                      amazonUrl ? "block cursor-pointer hover:border-blue-200" : ""
+                    }`}
+                  >
+                    <div className="relative aspect-[4/3] bg-slate-100">
+                      {book.image_url ? (
+                        <VictorImage
+                          src={book.image_url}
+                          alt={book.title}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          className="transition-transform duration-700 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300 font-serif italic text-4xl">
+                          VG
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-6 space-y-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+                        {book.author}
+                      </p>
+                      <h3 className="text-xl font-bold font-serif italic text-slate-900 leading-tight">
+                        {book.title}
+                      </h3>
+                      <p className="text-sm text-slate-600 leading-relaxed line-clamp-4">
+                        {book.description || "No description available."}
+                      </p>
+                      {amazonUrl ? (
+                        <p className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 group-hover:text-blue-700">
+                          {t.books_amazon}
+                          <svg
+                            className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                        </p>
+                      ) : null}
+                    </div>
+                  </Wrapper>
+                );
+              })}
               {books.length === 0 && (
                 <div className="col-span-full py-16 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <p className="font-serif italic text-xl">
@@ -1735,12 +1627,14 @@ const App: React.FC = () => {
                   onClick={() => setSelectedArticle(film)}
                   className="group cursor-pointer bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden hover:shadow-xl transition-all"
                 >
-                  <div className="aspect-video bg-slate-100 overflow-hidden">
+                  <div className="relative aspect-video bg-slate-100 overflow-hidden">
                     {film.image_url ? (
-                      <img
+                      <VictorImage
                         src={film.image_url}
                         alt={film.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-300 font-serif italic text-4xl">
@@ -1845,12 +1739,15 @@ const App: React.FC = () => {
               {allPhotos.slice(0, 4).map((photo) => (
                 <div
                   key={photo.id}
-                  className="aspect-square rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-sm bg-slate-100 cursor-zoom-in group border border-slate-200"
+                  className="relative aspect-square rounded-[1.5rem] md:rounded-[2rem] overflow-hidden shadow-sm bg-slate-100 cursor-zoom-in group border border-slate-200"
                   onClick={() => setView("gallery")}
                 >
-                  <img
+                  <VictorImage
                     src={photo.url}
-                    className="w-full h-full object-cover brightness-100 group-hover:scale-110 transition-all duration-1000"
+                    alt={photo.caption || "Archive photo"}
+                    fill
+                    sizes="(max-width: 1024px) 50vw, 25vw"
+                    className="object-cover brightness-100 group-hover:scale-110 transition-all duration-1000"
                   />
                 </div>
               ))}
@@ -1991,7 +1888,7 @@ const App: React.FC = () => {
         onClose={() => setSelectedBulletin(null)}
         lang={lang}
       />
-    </div>
+    </div>,
   );
 };
 

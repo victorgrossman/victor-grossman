@@ -35,7 +35,10 @@ import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
+import type { GermanTranslationMap } from "@/lib/content-translations/server";
+
 import { createBulletin, deleteBulletin, updateBulletin } from "./_actions";
+import { autoTranslateBulletinFields } from "./_translate-actions";
 
 /** Wide dialogs so long bulletin text is readable (matches full content width). */
 const bulletinDialogClassName =
@@ -48,6 +51,8 @@ const bulletinSchema = z.object({
   title: z.string().min(1, "Title is required."),
   content: z.string().min(1, "Content is required."),
   published_date: z.string().optional(),
+  title_de: z.string().optional(),
+  content_de: z.string().optional(),
 });
 
 export type BulletinRow = {
@@ -62,10 +67,12 @@ type BulletinFormValues = z.infer<typeof bulletinSchema>;
 
 function BulletinForm({
   initial,
+  german,
   onCancel,
   onSubmit,
 }: {
   initial?: Partial<BulletinRow>;
+  german?: { title_de?: string; content_de?: string };
   onCancel: () => void;
   onSubmit: (values: BulletinFormValues) => Promise<void>;
 }) {
@@ -77,11 +84,36 @@ function BulletinForm({
       title: initial?.title ?? "",
       content: initial?.content ?? "",
       published_date: initial?.published_date ?? "",
+      title_de: german?.title_de ?? "",
+      content_de: german?.content_de ?? "",
     },
     mode: "onChange",
   });
 
   const [pending, startTransition] = useTransition();
+  const [translating, setTranslating] = React.useState(false);
+
+  async function handleAutoTranslate() {
+    const title = form.getValues("title");
+    const content = form.getValues("content");
+    if (!title.trim() && !content.trim()) {
+      toast.error("Add English title or content first.");
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await autoTranslateBulletinFields(title, content);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      if (res.title_de) form.setValue("title_de", res.title_de);
+      if (res.content_de) form.setValue("content_de", res.content_de);
+      toast.success("German text generated. Review and save.");
+    } finally {
+      setTranslating(false);
+    }
+  }
 
   async function handleSubmit(values: BulletinFormValues) {
     startTransition(async () => {
@@ -142,6 +174,44 @@ function BulletinForm({
         />
       </div>
 
+      <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">German translation</p>
+            <p className="text-xs text-muted-foreground">
+              Shown when visitors switch the site to DE. Auto-fills on save if
+              left empty, or use the button to preview first.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={pending || translating}
+            onClick={handleAutoTranslate}
+          >
+            {translating ? "Translating…" : "Auto-translate"}
+          </Button>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="title_de">Title (Deutsch)</Label>
+          <Input
+            id="title_de"
+            placeholder="German title"
+            {...form.register("title_de")}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="content_de">Content (Deutsch)</Label>
+          <Textarea
+            id="content_de"
+            rows={8}
+            placeholder="German bulletin text…"
+            {...form.register("content_de")}
+          />
+        </div>
+      </div>
+
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
@@ -154,7 +224,13 @@ function BulletinForm({
   );
 }
 
-export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
+export function BulletinsAdmin({
+  bulletins,
+  germanById,
+}: {
+  bulletins: BulletinRow[];
+  germanById: GermanTranslationMap;
+}) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
@@ -295,6 +371,8 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
                     "published_date",
                     values.published_date ?? "",
                   );
+                  formData.append("title_de", values.title_de ?? "");
+                  formData.append("content_de", values.content_de ?? "");
 
                   const res = await createBulletin(formData);
                   if (!res.ok) {
@@ -416,6 +494,7 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
             {editing ? (
               <BulletinForm
                 initial={editing}
+                german={germanById[editing.id]}
                 onCancel={() => setEditOpen(false)}
                 onSubmit={async (values) => {
                   const formData = new FormData();
@@ -429,6 +508,8 @@ export function BulletinsAdmin({ bulletins }: { bulletins: BulletinRow[] }) {
                     "published_date",
                     values.published_date ?? "",
                   );
+                  formData.append("title_de", values.title_de ?? "");
+                  formData.append("content_de", values.content_de ?? "");
 
                   const res = await updateBulletin(editing.id, formData);
                   if (!res.ok) {

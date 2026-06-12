@@ -1,6 +1,16 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import {
+  resolveEnglishFields,
+  resolveGermanFields,
+} from "@/lib/content-translations/auto-fill"
+import {
+  deleteGermanTranslations,
+  saveEnglishTranslations,
+  saveGermanTranslations,
+} from "@/lib/content-translations/server"
+import { detectContentLang } from "@/lib/translation/detect-lang"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import {
   deleteImageKitFileByPublicUrl,
@@ -10,6 +20,41 @@ import { hasMeaningfulHtml } from "@/lib/html"
 
 function parseBool(v: FormDataEntryValue | null): boolean {
   return v === "true" || v === "on" || v === "1"
+}
+
+function readGermanFields(formData: FormData) {
+  return {
+    title_de: String(formData.get("title_de") ?? "").trim(),
+    excerpt_de: String(formData.get("excerpt_de") ?? "").trim(),
+    content_de: String(formData.get("content_de") ?? "").trim(),
+  }
+}
+
+async function saveArticleTranslations(
+  articleId: string,
+  fields: { title: string; excerpt: string; content: string },
+  german: ReturnType<typeof readGermanFields>,
+) {
+  const sourceLang = detectContentLang(
+    `${fields.title}\n${fields.excerpt}\n${fields.content}`,
+  )
+
+  if (sourceLang === "en") {
+    const resolved = await resolveGermanFields(fields, german)
+    await saveGermanTranslations("article", articleId, {
+      title: { source: fields.title, de: resolved.title_de },
+      excerpt: { source: fields.excerpt, de: resolved.excerpt_de },
+      content: { source: fields.content, de: resolved.content_de },
+    })
+    return
+  }
+
+  const resolved = await resolveEnglishFields(fields, {})
+  await saveEnglishTranslations("article", articleId, {
+    title: { source: fields.title, en: resolved.title_en },
+    excerpt: { source: fields.excerpt, en: resolved.excerpt_en },
+    content: { source: fields.content, en: resolved.content_en },
+  })
 }
 
 /** PostgREST / Postgres “unknown column” when 0002 migration is not applied yet. */
@@ -33,6 +78,7 @@ export async function createArticle(formData: FormData) {
   const author = String(formData.get("author") ?? "").trim() || null
   const is_published = parseBool(formData.get("is_published"))
   const imageFile = formData.get("image") as File | null
+  const german = readGermanFields(formData)
 
   if (!title) return { ok: false as const, message: "Title is required." }
   if (!hasMeaningfulHtml(content))
@@ -55,19 +101,26 @@ export async function createArticle(formData: FormData) {
     image_url,
   }
 
-  let { error } = await supabase.from("articles").insert(payload)
+  let result = await supabase.from("articles").insert(payload).select("id").single()
 
-  if (error && isMissingExtendedArticleColumnsError(error)) {
-    const { error: err2 } = await supabase.from("articles").insert({
-      title,
-      excerpt: excerpt || null,
-      content,
-      image_url,
-    })
-    error = err2
+  if (result.error && isMissingExtendedArticleColumnsError(result.error)) {
+    result = await supabase
+      .from("articles")
+      .insert({
+        title,
+        excerpt: excerpt || null,
+        content,
+        image_url,
+      })
+      .select("id")
+      .single()
   }
 
-  if (error) return { ok: false as const, message: error.message }
+  if (result.error) return { ok: false as const, message: result.error.message }
+
+  if (result.data?.id) {
+    await saveArticleTranslations(result.data.id, { title, excerpt, content }, german)
+  }
 
   revalidatePath("/admin/articles")
   revalidatePath("/admin")
@@ -82,6 +135,7 @@ export async function updateArticle(articleId: string, formData: FormData) {
   const author = String(formData.get("author") ?? "").trim() || null
   const is_published = parseBool(formData.get("is_published"))
   const imageFile = formData.get("image") as File | null
+  const german = readGermanFields(formData)
 
   if (!articleId) return { ok: false as const, message: "Missing id." }
   if (!title) return { ok: false as const, message: "Title is required." }
@@ -148,6 +202,8 @@ export async function updateArticle(articleId: string, formData: FormData) {
     await deleteImageKitFileByPublicUrl(previousUrl)
   }
 
+  await saveArticleTranslations(articleId, { title, excerpt, content }, german)
+
   revalidatePath("/admin/articles")
   revalidatePath("/admin")
   return { ok: true as const }
@@ -172,6 +228,7 @@ export async function deleteArticle(articleId: string) {
     row?.image_url as string | null | undefined,
   )
 
+  await deleteGermanTranslations("article", articleId)
   revalidatePath("/admin/articles")
   revalidatePath("/admin")
   return { ok: true as const }

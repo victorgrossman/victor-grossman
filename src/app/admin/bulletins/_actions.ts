@@ -1,27 +1,52 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { resolveGermanFields } from "@/lib/content-translations/auto-fill"
+import {
+  deleteGermanTranslations,
+  saveGermanTranslations,
+} from "@/lib/content-translations/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+
+function readGermanFields(formData: FormData) {
+  return {
+    title_de: String(formData.get("title_de") ?? "").trim(),
+    content_de: String(formData.get("content_de") ?? "").trim(),
+  }
+}
 
 export async function createBulletin(formData: FormData) {
   const bulletin_number = String(formData.get("bulletin_number") ?? "").trim()
   const title = String(formData.get("title") ?? "").trim()
   const content = String(formData.get("content") ?? "").trim()
   const published_date = String(formData.get("published_date") ?? "").trim() || null
+  const german = readGermanFields(formData)
 
   if (!title) return { ok: false as const, message: "Title is required." }
   if (!content) return { ok: false as const, message: "Content is required." }
 
   const supabase = createSupabaseServerClient()
 
-  const { error } = await supabase.from("bulletins").insert({
-    bulletin_number,
-    title,
-    content,
-    published_date,
-  })
+  const { data, error } = await supabase
+    .from("bulletins")
+    .insert({
+      bulletin_number,
+      title,
+      content,
+      published_date,
+    })
+    .select("id")
+    .single()
 
   if (error) return { ok: false as const, message: error.message }
+
+  if (data?.id) {
+    const resolved = await resolveGermanFields({ title, content }, german)
+    await saveGermanTranslations("bulletin", data.id, {
+      title: { source: title, de: resolved.title_de },
+      content: { source: content, de: resolved.content_de },
+    })
+  }
 
   revalidatePath("/admin/bulletins")
   return { ok: true as const }
@@ -32,6 +57,7 @@ export async function updateBulletin(bulletinId: string, formData: FormData) {
   const title = String(formData.get("title") ?? "").trim()
   const content = String(formData.get("content") ?? "").trim()
   const published_date = String(formData.get("published_date") ?? "").trim() || null
+  const german = readGermanFields(formData)
 
   if (!bulletinId) return { ok: false as const, message: "Missing id." }
   if (!title) return { ok: false as const, message: "Title is required." }
@@ -45,6 +71,12 @@ export async function updateBulletin(bulletinId: string, formData: FormData) {
     .eq("id", bulletinId)
 
   if (error) return { ok: false as const, message: error.message }
+
+  const resolved = await resolveGermanFields({ title, content }, german)
+  await saveGermanTranslations("bulletin", bulletinId, {
+    title: { source: title, de: resolved.title_de },
+    content: { source: content, de: resolved.content_de },
+  })
 
   revalidatePath("/admin/bulletins")
   return { ok: true as const }
@@ -61,6 +93,7 @@ export async function deleteBulletin(bulletinId: string) {
 
   if (error) return { ok: false as const, message: error.message }
 
+  await deleteGermanTranslations("bulletin", bulletinId)
   revalidatePath("/admin/bulletins")
   return { ok: true as const }
 }

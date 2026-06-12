@@ -40,12 +40,15 @@ import { hasMeaningfulHtml, stripHtml } from "@/lib/html";
 import { RichTextEditor } from "@/components/admin/rich-text-editor";
 import { ArticleContent } from "@/components/victor/ArticleContent";
 
+import type { GermanTranslationMap } from "@/lib/content-translations/server";
+
 import {
   createArticle,
   deleteArticle,
   updateArticle,
   uploadArticleContentImage,
 } from "./_actions";
+import { autoTranslateArticleFields } from "./_translate-actions";
 
 const articleDialogClassName =
   "flex max-h-[90vh] w-[min(100vw-1.5rem,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl";
@@ -62,6 +65,9 @@ const articleSchema = z.object({
   author: z.string().optional(),
   is_published: z.boolean(),
   image: z.any().optional(),
+  title_de: z.string().optional(),
+  excerpt_de: z.string().optional(),
+  content_de: z.string().optional(),
 });
 
 type ArticleRow = {
@@ -94,11 +100,13 @@ function formatArticleDate(iso: string | null | undefined) {
 
 function ArticleForm({
   initial,
+  german,
   onCancel,
   onSubmit,
   variant = "edit",
 }: {
   initial?: Partial<ArticleRow>;
+  german?: { title_de?: string; excerpt_de?: string; content_de?: string };
   onCancel: () => void;
   onSubmit: (values: ArticleFormValues, file?: File) => Promise<void>;
   variant?: "create" | "edit";
@@ -114,17 +122,45 @@ function ArticleForm({
       author: initial?.author ?? "",
       is_published: initial?.is_published !== false,
       image: undefined,
+      title_de: german?.title_de ?? "",
+      excerpt_de: german?.excerpt_de ?? "",
+      content_de: german?.content_de ?? "",
     },
     mode: "onChange",
   });
 
   const [pending, startTransition] = useTransition();
+  const [translating, setTranslating] = React.useState(false);
   const watchedImage = form.watch("image") as FileList | undefined;
 
   const imageHint =
     variant === "create"
       ? "Optional cover image for listings."
       : "Leave empty to keep the current cover image.";
+
+  async function handleAutoTranslate() {
+    const title = form.getValues("title");
+    const excerpt = form.getValues("excerpt") ?? "";
+    const content = form.getValues("content");
+    if (!title.trim() && !content.trim()) {
+      toast.error("Add English title or content first.");
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await autoTranslateArticleFields(title, excerpt, content);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      if (res.title_de) form.setValue("title_de", res.title_de);
+      if (res.excerpt_de) form.setValue("excerpt_de", res.excerpt_de);
+      if (res.content_de) form.setValue("content_de", res.content_de);
+      toast.success("German text generated. Review and save.");
+    } finally {
+      setTranslating(false);
+    }
+  }
 
   async function handleSubmit(values: ArticleFormValues) {
     const file = watchedImage?.[0];
@@ -247,6 +283,69 @@ function ArticleForm({
         <p className="text-xs text-muted-foreground">{imageHint}</p>
       </div>
 
+      <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">German translation</p>
+            <p className="text-xs text-muted-foreground">
+              Shown when visitors switch the site to DE. Auto-fills on save if
+              left empty, or use the button to preview first.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={pending || translating}
+            onClick={handleAutoTranslate}
+          >
+            {translating ? "Translating…" : "Auto-translate"}
+          </Button>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="article-title-de">Title (Deutsch)</Label>
+          <Input
+            id="article-title-de"
+            placeholder="German title"
+            {...form.register("title_de")}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="article-excerpt-de">Excerpt (Deutsch)</Label>
+          <Textarea
+            id="article-excerpt-de"
+            rows={3}
+            placeholder="German summary…"
+            {...form.register("excerpt_de")}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Content (Deutsch)</Label>
+          <Controller
+            control={form.control}
+            name="content_de"
+            render={({ field }) => (
+              <RichTextEditor
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                placeholder="German article text…"
+                disabled={pending}
+                onUploadImage={async (file) => {
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  const res = await uploadArticleContentImage(formData);
+                  if (!res.ok) {
+                    toast.error(res.message ?? "Image upload failed.");
+                    return null;
+                  }
+                  return res.url;
+                }}
+              />
+            )}
+          />
+        </div>
+      </div>
+
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
@@ -259,7 +358,13 @@ function ArticleForm({
   );
 }
 
-export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
+export function ArticlesAdmin({
+  articles,
+  germanById,
+}: {
+  articles: ArticleRow[];
+  germanById: GermanTranslationMap;
+}) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = React.useState(false);
   const [createNonce, setCreateNonce] = React.useState(0);
@@ -433,6 +538,9 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                     values.is_published ? "true" : "false",
                   );
                   if (file) formData.append("image", file);
+                  formData.append("title_de", values.title_de ?? "");
+                  formData.append("excerpt_de", values.excerpt_de ?? "");
+                  formData.append("content_de", values.content_de ?? "");
 
                   const res = await createArticle(formData);
                   if (!res.ok) {
@@ -590,6 +698,7 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                 key={editing.id}
                 variant="edit"
                 initial={editing}
+                german={germanById[editing.id]}
                 onCancel={() => setEditOpen(false)}
                 onSubmit={async (values, file) => {
                   const formData = new FormData();
@@ -603,6 +712,9 @@ export function ArticlesAdmin({ articles }: { articles: ArticleRow[] }) {
                     values.is_published ? "true" : "false",
                   );
                   if (file) formData.append("image", file);
+                  formData.append("title_de", values.title_de ?? "");
+                  formData.append("excerpt_de", values.excerpt_de ?? "");
+                  formData.append("content_de", values.content_de ?? "");
 
                   const res = await updateArticle(editing.id, formData);
                   if (!res.ok) {

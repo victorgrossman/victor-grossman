@@ -6,7 +6,7 @@ export default async function BooksPage() {
     const supabase = createSupabaseServerClient();
     const { data } = await supabase
       .from("books")
-      .select("id,title,author,description,image_url")
+      .select("id,title,author,description,image_url,amazon_url")
       .order("created_at", { ascending: false })
       .limit(200);
 
