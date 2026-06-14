@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "./_actions/auth";
 import { MobileNav } from "./_components/mobile-nav";
@@ -5,6 +6,11 @@ import { SidebarNav } from "./_components/sidebar-nav";
 import { SonnerToaster } from "./_components/sonner-toaster";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Admin",
+  robots: { index: false, follow: false },
+};
 
 const links = [
   { href: "/admin", label: "Dashboard" },

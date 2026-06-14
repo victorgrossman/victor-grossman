@@ -916,12 +916,16 @@ const App: React.FC = () => {
           <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-10 pb-20 md:pb-24 w-full text-center md:text-left">
             <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
               <div className="max-w-5xl mx-auto md:mx-0">
-                <h1 className="text-lg md:text-2xl lg:text-4xl xl:text-5xl font-bold text-white mb-6 tracking-tighter leading-tight drop-shadow-[0_4px_32px_rgba(0,0,0,0.8)]">
-                  Victor Grossman - Stephen Wechsler
+                <h1 className="text-2xl md:text-3xl lg:text-5xl xl:text-6xl font-bold text-white mb-4 tracking-tighter leading-tight drop-shadow-[0_4px_32px_rgba(0,0,0,0.8)]">
+                  Victor Grossman
                 </h1>
-                <div className="flex flex-col gap-6 text-white font-serif italic text-lg md:text-2xl drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
-                  <p className="font-bold tracking-tight">1928 – 2025</p>
-                </div>
+                <p className="text-white font-serif italic text-base md:text-xl lg:text-2xl drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)] mb-4">
+                  Stephen Wechsler · 1928 – 2025
+                </p>
+                <p className="text-white/90 text-sm md:text-base max-w-2xl drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]">
+                  Memorial, biography, Berlin Bulletins, books, interviews &amp;
+                  photo archive
+                </p>
               </div>
             </div>
           </div>
@@ -930,6 +934,8 @@ const App: React.FC = () => {
         {/* BIOGRAPHY SECTION */}
         <section
           ref={sectionRefs[Section.About]}
+          id="biography"
+          aria-labelledby="biography-heading"
           className="relative bg-white pt-20 pb-24 md:pt-32 md:pb-40"
         >
           <div className="max-w-7xl mx-auto px-6">
@@ -938,7 +944,10 @@ const App: React.FC = () => {
                 <span className="text-[10px] md:text-[12px] font-black uppercase tracking-[0.4em] md:tracking-[0.5em] text-blue-600">
                   {t.bio1_title}
                 </span>
-                <h2 className="text-4xl md:text-8xl font-serif italic font-bold text-slate-900 tracking-tight leading-none">
+                <h2
+                  id="biography-heading"
+                  className="text-4xl md:text-8xl font-serif italic font-bold text-slate-900 tracking-tight leading-none"
+                >
                   {t.bio1_range}
                 </h2>
                 <ScrollRevealParagraph

@@ -1,8 +1,14 @@
+import type { Metadata } from "next";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "@/app/login-form";
+
+export const metadata: Metadata = {
+  title: "Admin Login",
+  robots: { index: false, follow: false },
+};
 
 export default async function LoginPage() {
   const supabase = createSupabaseServerClient();
