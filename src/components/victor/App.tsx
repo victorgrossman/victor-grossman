@@ -775,7 +775,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {previewYearBulletins.map((bulletin) => (
               <BulletinCard
                 key={bulletin.id}
@@ -1597,7 +1597,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {visibleBulletins.map((bulletin) => (
                 <BulletinCard
                   key={bulletin.id}
