@@ -3,16 +3,7 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
-  async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.victorgrossman.com" }],
-        destination: "https://victorgrossman.com/:path*",
-        permanent: true,
-      },
-    ];
-  },
+  // Domain redirects (apex → www) are handled in Vercel Domains settings.
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
