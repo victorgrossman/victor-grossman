@@ -2,6 +2,10 @@ import { fetchGermanTranslationMap } from "@/lib/content-translations/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ArticlesAdmin } from "./articles-admin";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
+
 const ARTICLES_SELECT_FULL =
   "id,title,excerpt,content,image_url,created_at,category,author,wp_post_id,is_published";
 

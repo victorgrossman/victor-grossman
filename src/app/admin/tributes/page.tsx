@@ -1,6 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { TributesAdmin, type TributeRow } from "./tributes-admin";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
+
 export default async function TributesPage() {
   try {
     const supabase = createSupabaseServerClient();

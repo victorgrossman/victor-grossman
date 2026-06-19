@@ -7,6 +7,9 @@ import { SonnerToaster } from "./_components/sonner-toaster";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 export const metadata: Metadata = {
   title: "Admin",
   robots: { index: false, follow: false },
