@@ -1,7 +1,7 @@
-/** Canonical site URL — set NEXT_PUBLIC_SITE_URL=https://victorgrossman.com in production. */
+/** Canonical site URL — must match Vercel primary domain (www). */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
-  "https://victorgrossman.com";
+  "https://www.victorgrossman.com";
 
 export const SITE_NAME = "Victor Grossman Memorial";
 
@@ -26,7 +26,7 @@ export const PERSON = {
   sameAs: [
     "https://en.wikipedia.org/wiki/Victor_Grossman",
     "https://victorgrossmansberlinbulletin.wordpress.com/",
-    "https://victorgrossman.com/",
+    "https://www.victorgrossman.com/",
   ],
   heroImage:
     "https://bilder.deutschlandfunk.de/FI/LE/_3/70/FILE_37094d6d0577fb2093d8e96b3ff84bd9/2630844420-victor-2019-jpg-100-1920x1080.jpg",
