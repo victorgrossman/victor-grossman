@@ -702,7 +702,6 @@ const App: React.FC = () => {
                 key={article.id}
                 article={article}
                 lang={lang}
-                onClick={() => setSelectedArticle(article)}
               />
             ))}
             {articles.length === 0 && (
@@ -783,7 +782,6 @@ const App: React.FC = () => {
                 lang={lang}
                 readLabel={t.read_full_bulletin}
                 compact
-                onClick={() => setSelectedBulletin(bulletin)}
               />
             ))}
             {previewYearBulletins.length === 0 && (
@@ -1604,7 +1602,6 @@ const App: React.FC = () => {
                   bulletin={bulletin}
                   lang={lang}
                   readLabel={t.read_full_bulletin}
-                  onClick={() => setSelectedBulletin(bulletin)}
                 />
               ))}
               {previewYearBulletins.length === 0 && (
@@ -1697,7 +1694,6 @@ const App: React.FC = () => {
                   key={article.id}
                   article={article}
                   lang={lang}
-                  onClick={() => setSelectedArticle(article)}
                 />
               ))}
               {articles.length === 0 && (
