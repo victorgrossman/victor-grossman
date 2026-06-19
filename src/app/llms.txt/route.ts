@@ -26,14 +26,13 @@ Stephen Wechsler, Victor Grossman Berlin, Berlin Bulletin author, GDR journalist
 - Memorial service held in Berlin, January 15, 2026.
 
 ## Site sections (English / German)
-- Biography (Über Victor Grossman)
-- Funeral eulogies (Trauerfeier)
-- Books & publications (Bücher)
-- Berlin Bulletin archive 2017–2025 (Berichte)
-- Articles and films (Artikel / Filme)
-- Photo archive (Fotos)
-- Wall of memories — public tributes (Erinnerungen)
-- Interviews — audio and video
+- Biography: ${SITE_URL}/biography
+- Berlin Bulletin archive 2017–2025: ${SITE_URL}/berlin-bulletin
+- Books & publications: ${SITE_URL}/books
+- Articles and films: ${SITE_URL}/articles
+- Interviews — audio and video: ${SITE_URL}/interviews
+- Photo archive (Fotos) — on homepage
+- Wall of memories — public tributes (Erinnerungen) — on homepage
 
 ## External references
 ${PERSON.sameAs.map((url) => `- ${url}`).join("\n")}

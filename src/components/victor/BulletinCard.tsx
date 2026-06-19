@@ -1,13 +1,15 @@
 "use client";
 
-import { useContentText } from "./ContentTranslationContext";
+import Link from "next/link";
+
 import { plainExcerpt } from "@/lib/content-translations/resolve";
+import { bulletinPath } from "@/lib/seo/paths";
+import { useContentText } from "./ContentTranslationContext";
 import { Bulletin } from "./types";
 
 type BulletinCardProps = {
   bulletin: Bulletin;
   lang: "en" | "de";
-  onClick: () => void;
   readLabel: string;
   compact?: boolean;
 };
@@ -15,7 +17,6 @@ type BulletinCardProps = {
 export function BulletinCard({
   bulletin,
   lang,
-  onClick,
   readLabel,
   compact = false,
 }: BulletinCardProps) {
@@ -33,11 +34,11 @@ export function BulletinCard({
   );
 
   return (
-    <article
-      onClick={onClick}
-      className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm hover:shadow-lg transition-all cursor-pointer"
+    <Link
+      href={bulletinPath(bulletin)}
+      className="block cursor-pointer rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:shadow-lg md:p-8"
     >
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
           {bulletin.bulletin_number || "Berlin Bulletin"}
         </span>
@@ -52,19 +53,19 @@ export function BulletinCard({
         </span>
       </div>
       <h3
-        className={`font-bold font-serif italic text-slate-900 mb-3 leading-tight ${
+        className={`mb-3 font-serif font-bold italic leading-tight text-slate-900 ${
           compact ? "text-xl md:text-2xl" : "text-2xl"
         }`}
       >
         {title}
       </h3>
-      <p className="text-slate-600 leading-relaxed line-clamp-5">{preview}</p>
+      <p className="line-clamp-5 leading-relaxed text-slate-600">{preview}</p>
       <div className="mt-5 flex items-center gap-2 text-blue-600">
         <span className="text-[10px] font-black uppercase tracking-[0.2em]">
           {readLabel}
         </span>
         <svg
-          className="w-4 h-4"
+          className="h-4 w-4"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -77,6 +78,6 @@ export function BulletinCard({
           />
         </svg>
       </div>
-    </article>
+    </Link>
   );
 }

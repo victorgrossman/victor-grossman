@@ -1,3 +1,6 @@
+import Link from "next/link";
+
+import { SEO_SECTION_PATHS } from "@/lib/seo/paths";
 import { PERSON } from "@/lib/seo/site";
 
 /**
@@ -11,6 +14,9 @@ export function CrawlableIntro() {
       aria-label="About Victor Grossman"
       className="sr-only"
     >
+      <h1>
+        Victor Grossman (1928–2025) — Official Memorial at victorgrossman.com
+      </h1>
       <p>{PERSON.description}</p>
       <p>
         Born Stephen Wechsler in New York City on March 11, 1928, Victor
@@ -21,16 +27,36 @@ export function CrawlableIntro() {
       </p>
       <h2>Memorial contents</h2>
       <ul>
-        <li>Biography and eulogies (Trauerfeier)</li>
-        <li>Berlin Bulletin archive (2017–2025)</li>
-        <li>Books and publications</li>
-        <li>Articles, films, and documentaries</li>
+        <li>
+          <Link href={SEO_SECTION_PATHS.biography}>
+            Biography and life of Victor Grossman
+          </Link>
+        </li>
+        <li>Funeral eulogies (Trauerfeier)</li>
+        <li>
+          <Link href={SEO_SECTION_PATHS.berlinBulletin}>
+            Berlin Bulletin archive (2017–2025)
+          </Link>
+        </li>
+        <li>
+          <Link href={SEO_SECTION_PATHS.books}>Books and publications</Link>
+        </li>
+        <li>
+          <Link href={SEO_SECTION_PATHS.articles}>
+            Articles, films, and documentaries
+          </Link>
+        </li>
         <li>Photo archive and wall of memories</li>
-        <li>Audio and video interviews</li>
+        <li>
+          <Link href={SEO_SECTION_PATHS.interviews}>
+            Audio and video interviews
+          </Link>
+        </li>
       </ul>
       <p>
         Also known as: Stephen Wechsler, Victor Grossman Berlin, Berlin Bulletin
-        author, GDR journalist.
+        author, GDR journalist, Crossing the River memoir, American journalist in
+        East Germany.
       </p>
     </article>
   );
