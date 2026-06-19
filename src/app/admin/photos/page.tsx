@@ -1,6 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PhotosAdmin, type PhotoRow } from "./photos-admin";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
+
 export default async function PhotosPage() {
   try {
     const supabase = createSupabaseServerClient();

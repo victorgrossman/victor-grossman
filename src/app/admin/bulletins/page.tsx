@@ -2,6 +2,10 @@ import { fetchGermanTranslationMap } from "@/lib/content-translations/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { BulletinsAdmin, type BulletinRow } from "./bulletins-admin";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
+
 export default async function BulletinsPage() {
   try {
     const supabase = createSupabaseServerClient();
